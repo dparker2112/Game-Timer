@@ -2,7 +2,36 @@ sudo apt update
 sudo apt upgrade
 
 sudo apt install git
+sudo apt install gh
 
 mkdir dev
 cd dev
 git clone https://github.com/dparker2112/Game-Timer
+cd Game-Timer
+gh auth login
+git remote set-url origin git@github.com:dparker2112/Game-Timer.git
+
+cd ~/dev
+curl https://raw.githubusercontent.com/zerotier/ZeroTierOne/master/doc/contact%40zerotier.com.gpg | gpg --dearmor | sudo tee /usr/share/keyrings/zerotierone-archive-keyring.gpg >/dev/null
+
+RELEASE=$(lsb_release -cs)
+
+echo "deb [signed-by=/usr/share/keyrings/zerotierone-archive-keyring.gpg] http://download.zerotier.com/debian/$RELEASE $RELEASE main" | sudo tee /etc/apt/sources.list.d/zerotier.list
+
+sudo apt update
+
+sudo apt install -y zerotier-one
+
+sudo zerotier-cli join e5cd7a9e1c461664
+
+sudo zerotier-cli listnetworks
+
+sudo apt-get update
+sudo apt-get install python3-pip
+sudo apt-get update
+sudo apt-get install python3-venv python3-full
+
+python3 -m venv my-venv
+
+
+sudo pip3 install rpi_ws281x adafruit-circuitpython-neopixel
