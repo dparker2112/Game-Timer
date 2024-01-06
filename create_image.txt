@@ -32,6 +32,19 @@ sudo apt-get update
 sudo apt-get install python3-venv python3-full
 
 python3 -m venv my-venv
+source my-venv/bin/activate
 
+pip3 install rpi_ws281x adafruit-circuitpython-neopixel
+python3 -m pip install --force-reinstall adafruit-blinka
 
 sudo pip3 install rpi_ws281x adafruit-circuitpython-neopixel
+
+to run:
+sudo my-venv/bin/python neopixels.py
+
+
+display:
+https://luma-oled.readthedocs.io/en/latest/hardware.html
+sudo usermod -a -G spi,gpio gameTimerUser
+
+my-venv/bin/python -m pip install --upgrade luma.oled
