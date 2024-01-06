@@ -1,0 +1,8 @@
+sudo apt update
+sudo apt upgrade
+
+sudo apt install git
+
+mkdir dev
+cd dev
+git clone https://github.com/dparker2112/Game-Timer
