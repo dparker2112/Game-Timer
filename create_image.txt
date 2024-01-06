@@ -48,3 +48,14 @@ https://luma-oled.readthedocs.io/en/latest/hardware.html
 sudo usermod -a -G spi,gpio gameTimerUser
 
 my-venv/bin/python -m pip install --upgrade luma.oled
+
+
+install start service:
+cp gameTimer.service /etc/systemd/system/gameTimer.service
+
+sudo systemctl daemon-reload
+sudo systemctl enable gameTimer.service
+sudo systemctl start gameTimer.service
+
+install pygame (for audio playback):
+pip install pygame
