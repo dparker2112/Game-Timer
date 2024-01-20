@@ -47,3 +47,4 @@ class LEDStrip:
             self.strip[i] = wheel(pixel_index & 255, self.order)
         self.show()
         self.j += 1
+
