@@ -36,21 +36,26 @@ class OLED_Display:
     
     def display_status(self, status):
         # Load a font in two different sizes
-        small_font = ImageFont.load_default()
-        large_font = ImageFont.truetype("DejaVuSans.ttf", 20)  # Adjust size as needed
+        small_font = ImageFont.truetype("DejaVuSans.ttf", 8)
+        large_font = ImageFont.truetype("DejaVuSans.ttf", 16)  # Adjust size as needed
 
         with canvas(self.device) as draw:
-            draw.rectangle(self.device.bounding_box, outline="white", fill="black")
+            #draw.rectangle(self.device.bounding_box, outline="white", fill="black")
 
             # Display button counts with small font
+            draw.text((4, 10), "Buttons:", fill="white", font=small_font)
             for i, count in enumerate(status["button_presses"]):
-                draw.text((10, 10 + i * 12), f"Button {i+1}: {count}", fill="white", font=small_font)
+                draw.text((40 + i * 15, 10), f"{i+1}", fill="white", font=small_font)
+                draw.text((40 + i * 15, 20), f"{count}", fill="white", font=small_font)
 
             # Display encoder position with small font
-            draw.text((10, 70), f"Encoder Pos: {status['encoder_position']}", fill="white", font=small_font)
+            draw.text((4, 30), f"Enc. Pos: {status['encoder_position']}", fill="white", font=small_font)
+
+            # Display encoder position with small font
+            draw.text((60, 30), f"Enc. count: {status['encoder_button_presses']}", fill="white", font=small_font)
 
             # Display large counter with large font
-            draw.text((10, 90), f"Large Counter: {status['large_counter']}", fill="white", font=large_font)
+            draw.text((40, 40), f"{status['large_counter']}", fill="white", font=large_font)
 
 def main():
     # Example usage

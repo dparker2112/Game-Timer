@@ -32,7 +32,7 @@ class Encoder:
             GPIO.setup(button_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
             GPIO.add_event_detect(button_pin, GPIO.FALLING, callback=button_callback, bouncetime=200)
 
-    def _update(self, channel: int) -> None:
+    def _update2(self, channel: int) -> None:
         clkState = GPIO.input(self.clk_pin)
         dtState = GPIO.input(self.dt_pin)
         if clkState != self.clkLastState:
@@ -41,6 +41,19 @@ class Encoder:
             else:
                 self.counter -= 1
             self.value_change_callback(self.counter)
+        self.clkLastState = clkState
+    def _update(self, channel: int) -> None:
+        clkState = GPIO.input(self.clk_pin)
+        dtState = GPIO.input(self.dt_pin)
+
+        if channel == self.clk_pin and clkState != self.clkLastState:
+            if clkState == 1:  # Only count when clk_pin goes high
+                if dtState != clkState:
+                    self.counter += 1
+                else:
+                    self.counter -= 1
+                self.value_change_callback(self.counter)
+
         self.clkLastState = clkState
 
 def init_encoder():

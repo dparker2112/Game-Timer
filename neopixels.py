@@ -2,22 +2,18 @@ import board
 import RPi.GPIO as GPIO
 import neopixel
 import time
-from classes import LEDStrip, wheel
+from led_strip import LEDStrip
 # Choose an open pin connected to the Data In of the NeoPixel strip, i.e. board.D18
 # NeoPixels must be connected to D10, D12, D18 or D21 to work.
 pixel_pin1 = board.D18
 pixel_pin2= board.D21
 
-# The order of the pixel colors - RGB or GRB. Some NeoPixels have red and green reversed!
-# For RGBW NeoPixels, simply change the ORDER to RGBW or GRBW.
-ORDER = neopixel.GRB
-
 # The number of NeoPixels
 num_pixels_ring = 24
 num_pixels_strip = 24
 
-ringPixels = LEDStrip(ORDER, num_pixels_ring, pixel_pin1)
-stripPixels = LEDStrip(ORDER, num_pixels_ring, pixel_pin2)
+ringPixels = LEDStrip(num_pixels_ring, pixel_pin1)
+stripPixels = LEDStrip(num_pixels_ring, pixel_pin2)
 
 def test_pixels():
     # Comment this line out if you have RGBW/GRBW NeoPixels
