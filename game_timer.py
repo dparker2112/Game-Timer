@@ -8,10 +8,10 @@ from datetime import datetime
 from button import Button
 from encoder import Encoder
 from oled import OLED_Display
-from led_strip import LEDStrip
+from led_strip2 import LEDStrip
 from data_tracker import DataTracker
 import board
-
+import pygame
 #pins for buttons
 button_pins = [2, 3, 4, 17, 27]
 
@@ -23,8 +23,8 @@ rotary_bt = 6    # Rotary Encoder Button
 #led strips
 # Choose an open pin connected to the Data In of the NeoPixel strip, i.e. board.D18
 # NeoPixels must be connected to D10, D12, D18 or D21 to work.
-pixel_pin1 = board.D18
-pixel_pin2= board.D21
+pixel_pin = board.D18
+
 
 # The number of NeoPixels
 num_pixels_ring = 24
@@ -45,8 +45,8 @@ class GameTimer:
         self.tracker = DataTracker(button_pins)
 
         #initialize led strips
-        self.ringPixels = LEDStrip(num_pixels_ring, pixel_pin1)
-        self.stripPixels = LEDStrip(num_pixels_strip, pixel_pin2)
+        self.ringPixels = LEDStrip(start_pixel=0, length=16, gpio=pixel_pin, num_pixels_total=32)
+        self.stripPixels = LEDStrip(start_pixel=16, length=16)
 
     def button_callback(self, channel):
         print(f"Button {channel} pressed")
