@@ -12,6 +12,7 @@ from led_strip2 import LEDStrip
 from data_tracker import DataTracker
 import board
 import pygame
+from audio_player_hardware_test import AudioPlayer
 #pins for buttons
 button_pins = [2, 3, 4, 17, 27]
 
@@ -23,7 +24,7 @@ rotary_bt = 6    # Rotary Encoder Button
 #led strips
 # Choose an open pin connected to the Data In of the NeoPixel strip, i.e. board.D18
 # NeoPixels must be connected to D10, D12, D18 or D21 to work.
-pixel_pin = board.D18
+pixel_pin = board.D21
 
 
 # The number of NeoPixels
@@ -48,6 +49,10 @@ class GameTimer:
         self.ringPixels = LEDStrip(start_pixel=0, length=16, gpio=pixel_pin, num_pixels_total=32)
         self.stripPixels = LEDStrip(start_pixel=16, length=16)
 
+        #initialize audio player
+        self.audio_player = AudioPlayer("audio")
+
+
     def button_callback(self, channel):
         print(f"Button {channel} pressed")
         self.tracker.increment_button_counter(channel)
@@ -64,14 +69,16 @@ class GameTimer:
     def test(self):
         self.stripPixels.start_rainbow_cycle()
         self.ringPixels.start_rainbow_cycle()
+        self.audio_player.start_hardware_test()
+        
         count = 0
         count2 = 0
         while True:
             if(self.tracker.updateReady()):
                 print("updating display")
                 self.oled_display.display_status(self.tracker.get_status())
-            if(count >= 100):
-                count2+=100
+            if(count >= 1000):
+                count2+=1000
                 print(f"running {count2/10}s")
                 count = 0
                 self.tracker.increment_large_counter()
@@ -85,6 +92,7 @@ class GameTimer:
         self.ringPixels.stop_rainbow_cycle()
         self.stripPixels.off()
         self.ringPixels.off()
+        self.audio_player.stop_hardware_test()
 
 
 def main():
@@ -92,6 +100,7 @@ def main():
         game_timer = GameTimer()
         game_timer.test()
     except KeyboardInterrupt:
+        print("cleanup")
         game_timer.stop()
         GPIO.cleanup()
     except Exception as e:
