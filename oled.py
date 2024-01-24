@@ -52,10 +52,14 @@ class OLED_Display:
             draw.text((4, 30), f"Enc. Pos: {status['encoder_position']}", fill="white", font=small_font)
 
             # Display encoder position with small font
-            draw.text((60, 30), f"Enc. count: {status['encoder_button_presses']}", fill="white", font=small_font)
+            draw.text((4, 40), f"Enc. count: {status['encoder_button_presses']}", fill="white", font=small_font)
 
             # Display large counter with large font
-            draw.text((40, 40), f"{status['large_counter']}", fill="white", font=large_font)
+            draw.text((90, 30), f"{status['large_counter']}", fill="white", font=large_font)
+
+            draw.text((4, 50), "extra gpio:", fill="white", font=small_font)
+            for i, count in enumerate(status["extra_gpio_presses"]):
+                draw.text((55 + i * 15, 50), f"{count}", fill="white", font=small_font)
 
 def main():
     # Example usage

@@ -24,12 +24,12 @@ class AudioPlayer:
     def play_random_segment(self, length):
         """Play a random 60-second segment from a random file."""
         if not self.file_list:
-            print("No WAV files found in the folder.")
+            self.logger.error("No WAV files found in the folder.")
             return
 
         audio_file = random.choice(self.file_list)
         file_path = os.path.join(self.folder_path, audio_file)
-        print(f"playing {audio_file} for {str(length)}s")
+        self.logger.info(f"playing {audio_file} for {str(length)}s")
         #segment = self._get_random_segment(file_path, length)
         #playback_io = BytesIO()
         #segment.export(playback_io, format="wav")

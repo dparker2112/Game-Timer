@@ -1,3 +1,4 @@
 my-venv/
 logs/
 __pycache__/
+system_output.log

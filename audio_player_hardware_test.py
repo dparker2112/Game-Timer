@@ -7,7 +7,8 @@ from io import BytesIO
 import time
 
 class AudioPlayer:
-    def __init__(self, folder_path):
+    def __init__(self, folder_path, logger):
+        self.logger = logger
         self.folder_path = folder_path
         self.file_list = [file for file in os.listdir(folder_path) if file.endswith('.wav')]
         self.reinitialize_mixer()
@@ -32,7 +33,7 @@ class AudioPlayer:
 
     def play_random_segment(self, length):
         if not self.file_list:
-            print("No WAV files found in the folder.")
+            self.logger.info("No WAV files found in the folder.")
             return
         
         audio_file = random.choice(self.file_list)
@@ -43,8 +44,8 @@ class AudioPlayer:
         self.reinitialize_mixer()
         
         segment = self._get_random_segment(file_path, length)
-        print(f"playing {audio_file} for {str(length)}s")
-        print(audio_string)
+        self.logger.info(f"playing {audio_file} for {str(length)}s")
+        self.logger.info(audio_string)
         playback_io = BytesIO()
         segment.export(playback_io, format="wav")
         playback_io.seek(0)
@@ -100,7 +101,7 @@ class AudioPlayer:
 
 def getRandomTime():
     return random.randint(10,40)
-print("hello")
+
 if __name__ == "__main__":
     audio_player = AudioPlayer("audio")
     audio_player.start_hardware_test()

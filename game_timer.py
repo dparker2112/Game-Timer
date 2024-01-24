@@ -1,9 +1,9 @@
 import logging
+import os
 import traceback
 import time
-from data_tracker import DataTracker as Tracker
+from data_tracker import DataTracker
 import RPi.GPIO as GPIO
-from datetime import datetime
 #from neopixels import test_pixels
 from button import Button
 from encoder import Encoder
@@ -11,11 +11,13 @@ from oled import OLED_Display
 from led_strip2 import LEDStrip
 from data_tracker import DataTracker
 import board
-import pygame
 from audio_player_hardware_test import AudioPlayer
+from logging.handlers import RotatingFileHandler
+import sys
+
 #pins for buttons
 button_pins = [2, 3, 4, 17, 27]
-
+extra_pins = [0, 1, 14, 15]
 #pins for encoder
 rotary_clk = 22   # Rotary Encoder Clock
 rotary_dt = 5    # Rotary Encoder Data
@@ -28,14 +30,18 @@ pixel_pin = board.D21
 
 
 # The number of NeoPixels
-num_pixels_ring = 24
-num_pixels_strip = 24
+num_pixels_ring = 16
+num_pixels_strip = 18
 
 class GameTimer:
-    def __init__(self):
+    def __init__(self, logger):
+        self.logger = logger
         #initialize pins
         for pin in button_pins:
             Button(pin, self.button_callback)
+        
+        for pin in extra_pins:
+            Button(pin, self.extra_button_callback)
         #initialize encoder
         Encoder(rotary_clk, rotary_dt, self.on_rotary_change,button_pin=rotary_bt, button_callback=self.encoder_button_pressed)
         
@@ -43,27 +49,31 @@ class GameTimer:
         self.oled_display = OLED_Display()
 
         # Initialize Tracker class
-        self.tracker = DataTracker(button_pins)
+        self.tracker = DataTracker(logger, button_pins, extra_pins)
 
         #initialize led strips
         self.ringPixels = LEDStrip(start_pixel=0, length=16, gpio=pixel_pin, num_pixels_total=32)
         self.stripPixels = LEDStrip(start_pixel=16, length=16)
 
         #initialize audio player
-        self.audio_player = AudioPlayer("audio")
+        self.audio_player = AudioPlayer("audio", logger)
 
 
     def button_callback(self, channel):
-        print(f"Button {channel} pressed")
+        self.logger.info(f"Button {channel} pressed")
         self.tracker.increment_button_counter(channel)
+    
+    def extra_button_callback(self, channel):
+        self.logger.info(f"Extra GPIO {channel} pressed")
+        self.tracker.increment_extra_gpio_counter(channel)
 
     def on_rotary_change(self, value):
-        print(value)
+        self.logger.info(value)
         #send the new encoder position to the data tracker
         self.tracker.update_encoder_position(value)
 
     def encoder_button_pressed(self, pin):
-        print(f"Encoder button on pin {pin} pressed")
+        self.logger.info(f"Encoder button on pin {pin} pressed")
         self.tracker.increment_encoder_counter()
    
     def test(self):
@@ -75,11 +85,11 @@ class GameTimer:
         count2 = 0
         while True:
             if(self.tracker.updateReady()):
-                print("updating display")
+                self.logger.info("updating display")
                 self.oled_display.display_status(self.tracker.get_status())
             if(count >= 1000):
                 count2+=1000
-                print(f"running {count2/10}s")
+                self.logger.info(f"running {count2/10}s")
                 count = 0
                 self.tracker.increment_large_counter()
             count+=1
@@ -87,25 +97,88 @@ class GameTimer:
             #self.oled_display.draw_multiple_texts()
     
     def stop(self):
-        print("cleaning up")
+        self.logger.info("cleaning up")
         self.stripPixels.stop_rainbow_cycle()
         self.ringPixels.stop_rainbow_cycle()
         self.stripPixels.off()
         self.ringPixels.off()
         self.audio_player.stop_hardware_test()
+        self.oled_display.clear_display()
+
+
+def setup_logging():
+    log_directory = "logs"
+    log_filename = "my_app.log"
+    # Create log directory if it does not exist
+    if not os.path.exists(log_directory):
+        os.makedirs(log_directory)
+    full_log_path = os.path.join(log_directory, log_filename)
+
+    # Create a logger object
+    logger = logging.getLogger('my_app')
+    logger.setLevel(logging.INFO)  # Set the logging level
+    
+    # Create a handler that writes log messages to a file, with log rotation
+    handler = RotatingFileHandler(
+        full_log_path, maxBytes=5*1024*1024, backupCount=5
+    )
+
+    handler.setLevel(logging.INFO)
+
+    # Create a logging format
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+
+    # Add the handler to the logger
+    logger.addHandler(handler)
+
+    return logger
+
+def cleanup_logging(logger):
+    # Close all handlers
+    for handler in logger.handlers:
+        handler.close()
+        logger.removeHandler(handler)
+
+    # Optional: Shutdown logging
+    logging.shutdown()
+
+class StreamToLogger:
+    """
+    Redirects stdout and stderr to logging module.
+    """
+    def __init__(self, logger, level):
+        self.logger = logger
+        self.level = level
+
+    def write(self, message):
+        # Avoid duplicate logging messages
+        if message.rstrip() != "":
+            self.logger.log(self.level, message.rstrip())
+
+    def flush(self):
+        # This flush method is needed for compatibility with file-like objects.
+        pass
+
 
 
 def main():
     try:
-        game_timer = GameTimer()
+        logger = setup_logging()
+        # Redirect stderr and stdout
+        sys.stderr = StreamToLogger(logger, logging.ERROR)
+        sys.stdout = StreamToLogger(logger, logging.INFO)
+        print("This is a test message") 
+        game_timer = GameTimer(logger)
         game_timer.test()
     except KeyboardInterrupt:
-        print("cleanup")
+        logger.info("cleanup")
         game_timer.stop()
         GPIO.cleanup()
     except Exception as e:
+        cleanup_logging(logger)
         game_timer.stop()
-        print("An error occurred:")
+        logger.exception("An error occurred")
         traceback.print_exc()  # This prints details of the exception
         GPIO.cleanup()
 
