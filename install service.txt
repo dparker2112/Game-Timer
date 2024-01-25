@@ -1,0 +1,20 @@
+install service:
+sudo cp /home/gameTimerUser/dev/Game-Timer/gameTimer.service /etc/systemd/system/game_timer.service
+
+start service:
+sudo systemctl start game_timer.service
+
+enable service:
+sudo systemctl enable game_timer.service
+
+check service status:
+sudo systemctl status game_timer.service
+
+stop service:
+sudo systemctl stop game_timer.service
+restart service:
+sudo systemctl restart game_timer.service
+
+see logs
+sudo journalctl -u game_timer.service
+less system_output.log

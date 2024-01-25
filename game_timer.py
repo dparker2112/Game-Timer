@@ -14,6 +14,9 @@ import board
 from audio_player_hardware_test import AudioPlayer
 from logging.handlers import RotatingFileHandler
 import sys
+import signal
+
+kill_signal = False
 
 #pins for buttons
 button_pins = [2, 3, 4, 17, 27]
@@ -83,7 +86,7 @@ class GameTimer:
         
         count = 0
         count2 = 0
-        while True:
+        while not kill_signal:
             if(self.tracker.updateReady()):
                 self.logger.info("updating display")
                 self.oled_display.display_status(self.tracker.get_status())
@@ -94,7 +97,9 @@ class GameTimer:
                 self.tracker.increment_large_counter()
             count+=1
             time.sleep(0.1)
+
             #self.oled_display.draw_multiple_texts()
+        self.stop()
     
     def stop(self):
         self.logger.info("cleaning up")
@@ -159,6 +164,17 @@ class StreamToLogger:
     def flush(self):
         # This flush method is needed for compatibility with file-like objects.
         pass
+
+def sigterm_handler(_signo, _stack_frame):
+    # Cleanup logic
+    print("SIGTERM received, shutting down")
+    global kill_signal 
+    kill_signal = True
+    sys.exit(0)
+
+# Register the SIGTERM handler
+signal.signal(signal.SIGTERM, sigterm_handler)
+
 
 
 

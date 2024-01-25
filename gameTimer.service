@@ -3,7 +3,7 @@ Description=My Python Program
 After=network.target
 
 [Service]
-ExecStart=/home/gameTimerUser/dev/Game-Timer/startGameTimer.sh
+ExecStart=bash /home/gameTimerUser/dev/Game-Timer/startGameTimer.sh
 WorkingDirectory=/home/gameTimerUser/dev/Game-Timer
 StandardOutput=inherit
 StandardError=inherit
