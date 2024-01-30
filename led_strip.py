@@ -81,3 +81,7 @@ class LEDStrip:
         self.running = False
         if self.thread is not None:
             self.thread.join()
+
+#if __name__ == "__main__":
+        #stripPixels.start_rainbow_cycle()
+        #ringPixels.start_rainbow_cycle()

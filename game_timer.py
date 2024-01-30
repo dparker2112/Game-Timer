@@ -55,8 +55,8 @@ class GameTimer:
         self.tracker = DataTracker(logger, button_pins, extra_pins)
 
         #initialize led strips
-        self.ringPixels = LEDStrip(start_pixel=0, length=num_pixels_ring, gpio=pixel_pin, num_pixels_total=32)
-        self.stripPixels = LEDStrip(start_pixel=16, length=num_pixels_strip)
+        self.ringPixels = LEDStrip(start_pixel=0, length=num_pixels_ring, gpio=pixel_pin, num_pixels_total=num_pixels_ring+num_pixels_strip)
+        self.stripPixels = LEDStrip(start_pixel=num_pixels_ring, length=num_pixels_strip)
 
         #initialize audio player
         self.audio_player = AudioPlayer("audio", logger)
