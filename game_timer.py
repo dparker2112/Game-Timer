@@ -155,11 +155,18 @@ class StreamToLogger:
     def __init__(self, logger, level):
         self.logger = logger
         self.level = level
+        self.recursion_guard = False
 
     def write(self, message):
-        # Avoid duplicate logging messages
-        if message.rstrip() != "":
-            self.logger.log(self.level, message.rstrip())
+        if self.recursion_guard:
+            return
+        self.recursion_guard = True
+        try:
+            if message.rstrip() != "":
+                self.logger.log(self.level, message.rstrip())
+        finally:
+            self.recursion_guard = False
+
 
     def flush(self):
         # This flush method is needed for compatibility with file-like objects.
