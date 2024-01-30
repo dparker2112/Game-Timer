@@ -55,8 +55,8 @@ class GameTimer:
         self.tracker = DataTracker(logger, button_pins, extra_pins)
 
         #initialize led strips
-        self.ringPixels = LEDStrip(start_pixel=0, length=16, gpio=pixel_pin, num_pixels_total=32)
-        self.stripPixels = LEDStrip(start_pixel=16, length=16)
+        self.ringPixels = LEDStrip(start_pixel=0, length=num_pixels_ring, gpio=pixel_pin, num_pixels_total=32)
+        self.stripPixels = LEDStrip(start_pixel=16, length=num_pixels_strip)
 
         #initialize audio player
         self.audio_player = AudioPlayer("audio", logger)
@@ -170,7 +170,6 @@ def sigterm_handler(_signo, _stack_frame):
     print("SIGTERM received, shutting down")
     global kill_signal 
     kill_signal = True
-    sys.exit(0)
 
 # Register the SIGTERM handler
 signal.signal(signal.SIGTERM, sigterm_handler)
