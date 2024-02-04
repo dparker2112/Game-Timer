@@ -40,11 +40,13 @@ class GameTimer:
     def __init__(self, logger):
         self.logger = logger
         #initialize pins
+        self.button_array = []
+        self.extra_button_array = []
         for pin in button_pins:
-            Button(pin, self.button_callback)
+            self.button_array.append(Button(pin, self.button_callback, self.logger))
         
         for pin in extra_pins:
-            Button(pin, self.extra_button_callback)
+            self.extra_button_array.append(Button(pin, self.extra_button_callback, self.logger))
         #initialize encoder
         Encoder(rotary_clk, rotary_dt, self.on_rotary_change,button_pin=rotary_bt, button_callback=self.encoder_button_pressed)
         
@@ -86,7 +88,16 @@ class GameTimer:
         
         count = 0
         count2 = 0
+        self.logger.info("starting test")
         while not kill_signal:
+            current_button_states = []
+            for index in range(len(self.button_array)):
+                current_button_states.append(self.button_array[index].get_state())
+            self.tracker.update_button_states(current_button_states)
+            extra_button_states = []
+            for index in range(len(self.extra_button_array)):
+                extra_button_states.append(self.extra_button_array[index].get_state())
+            self.tracker.update_extra_button_states(extra_button_states)
             if(self.tracker.updateReady()):
                 self.logger.info("updating display")
                 self.oled_display.display_status(self.tracker.get_status())
@@ -99,6 +110,7 @@ class GameTimer:
             time.sleep(0.1)
 
             #self.oled_display.draw_multiple_texts()
+        self.logger.info("cleaning up")
         self.stop()
     
     def stop(self):
@@ -188,8 +200,8 @@ def main():
     try:
         logger = setup_logging()
         # Redirect stderr and stdout
-        sys.stderr = StreamToLogger(logger, logging.ERROR)
-        sys.stdout = StreamToLogger(logger, logging.INFO)
+        # sys.stderr = StreamToLogger(logger, logging.ERROR)
+        # sys.stdout = StreamToLogger(logger, logging.INFO)
         print("This is a test message") 
         game_timer = GameTimer(logger)
         game_timer.test()

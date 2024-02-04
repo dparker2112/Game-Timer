@@ -14,16 +14,30 @@ counter = 0
 clkLastState = 0
 
 class Button:
-    def __init__(self, pin: int, callback: Callable[[int], None]) -> None:
+    def __init__(self, pin: int, callback: Callable[[int], None],logger=None) -> None:
         self.pin = pin
+        self.logger = logger
+        self.callback = callback
         GPIO.setmode(GPIO.BCM)
         GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        GPIO.add_event_detect(pin, GPIO.FALLING, callback=callback, bouncetime=400)
+        GPIO.add_event_detect(pin, GPIO.FALLING, callback=self.button_callback, bouncetime=400)
 
 
-def button_callback(channel):
-    print(f"Button {channel} pressed")
+    def button_callback(self, channel):
+        if(self.pin != channel):
+            self.logger.error(f"unmatched button and channel: pin: ${self.pin}, channel: ${self.channel}")
+        if(not GPIO.input(channel)):
+            self.callback(channel)
+            #print(f"Button {channel} pressed")
+    
+    def get_state(self):
+        return GPIO.input(self.pin)
 
+
+def button_callback(self, channel):
+    if(not GPIO.input(channel)):
+        self.callback(channel)
+        #print(f"Button {channel} pressed")
 
 def init_gpio():
     # # GPIO Setup

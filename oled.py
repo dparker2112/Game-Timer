@@ -43,10 +43,30 @@ class OLED_Display:
             #draw.rectangle(self.device.bounding_box, outline="white", fill="black")
 
             # Display button counts with small font
+            states = status['button_states']
+            other_states = status['extra_button_states']
+
             draw.text((4, 10), "Buttons:", fill="white", font=small_font)
             for i, count in enumerate(status["button_presses"]):
-                draw.text((40 + i * 15, 10), f"{i+1}", fill="white", font=small_font)
-                draw.text((40 + i * 15, 20), f"{count}", fill="white", font=small_font)
+                state = not states[i]
+            
+                # Calculate position and size for background rectangle
+                # Adjust the x, y, width, and height as needed to fit your layout
+                x_pos = 40 + i * 15
+                y_pos = 10  # Adjust if necessary
+                width = 10  # Adjust the width as needed
+                height = 10  # Adjust the height as needed
+
+                if state:
+                # Draw the background rectangle slightly larger than the text
+                    draw.rectangle([x_pos, y_pos, x_pos + width, y_pos + height], fill="white")
+                    draw.text((x_pos, y_pos), f"{i+1}", fill="black", font=small_font)
+                else:
+                    draw.text((x_pos, y_pos), f"{i+1}", fill="white", font=small_font)
+                # Now draw the text over the background rectangle
+                
+                
+                draw.text((x_pos, y_pos + 10), f"{count}", fill="white", font=small_font)
 
             # Display encoder position with small font
             draw.text((4, 30), f"Enc. Pos: {status['encoder_position']}", fill="white", font=small_font)
@@ -59,7 +79,16 @@ class OLED_Display:
 
             draw.text((4, 50), "extra gpio:", fill="white", font=small_font)
             for i, count in enumerate(status["extra_gpio_presses"]):
+                state = not other_states[i]
+
                 draw.text((55 + i * 15, 50), f"{count}", fill="white", font=small_font)
+                if state:
+                # Draw the background rectangle slightly larger than the text
+                                    #x1        y1   x2          y2
+                    draw.rectangle([55 +i * 15, 50, 65 + i * 15, 60], fill="white")
+                    draw.text((55 + i * 15, 50), f"{count}", fill="black", font=small_font)
+                else:
+                    draw.text((55 + i * 15, 50), f"{count}", fill="white", font=small_font)
 
 def main():
     # Example usage
