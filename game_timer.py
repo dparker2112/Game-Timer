@@ -38,7 +38,7 @@ for key in button_dict:
 
 # Reverse the button_dict to make GPIO pins the keys
 reversed_button_dict = {pin: button for button, pin in button_dict.items()}
-print(reversed_button_dict)
+#print(reversed_button_dict)
 
 #button_pins = [button1_pin, button2_pin, 17, 27]
 extra_pins = [0, 1, 14, 15]
@@ -89,9 +89,9 @@ class GameTimer:
         
 
     def set_button_flags(self, index):
-        print(f"setting button flag {index}")
+        #print(f"setting button flag {index}")
         self.button_flags[index] = True
-        print(self.button_flags)
+        #print(self.button_flags)
 
     def button_callback(self, channel):
         self.logger.info(f"Button {channel} pressed")

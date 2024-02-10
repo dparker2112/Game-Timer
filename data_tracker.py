@@ -78,7 +78,7 @@ class DataTracker:
     def update_total_time(self, direction):
         self.update = True
         self.time = self.time + direction * self.increment
-        print(self.time)
+        self.logger.info(f"updated time: {self.time}")
     
     def update_increment(self):
         self.update = True
