@@ -15,11 +15,32 @@ from audio_player_hardware_test import AudioPlayer
 from logging.handlers import RotatingFileHandler
 import sys
 import signal
+from enum import Enum
+
+class GameTimerState(Enum):
+    IDLE = 0
+    TIMER_START = 1
+    COUNTING_DOWN = 2
+    WARNING = 3
+    TIME_UP = 4
 
 kill_signal = False
 
 #pins for buttons
-button_pins = [2, 3, 4, 17, 27]
+button_dict = {0: 2,
+               1: 3,
+               2: 4,
+               3: 17,
+               4: 27}
+button_pins = []
+for key in button_dict:
+    button_pins.append(button_dict[key])
+
+# Reverse the button_dict to make GPIO pins the keys
+reversed_button_dict = {pin: button for button, pin in button_dict.items()}
+print(reversed_button_dict)
+
+#button_pins = [button1_pin, button2_pin, 17, 27]
 extra_pins = [0, 1, 14, 15]
 #pins for encoder
 rotary_clk = 22   # Rotary Encoder Clock
@@ -39,11 +60,14 @@ num_pixels_strip = 18
 class GameTimer:
     def __init__(self, logger):
         self.logger = logger
+        self.state = GameTimerState.IDLE
         #initialize pins
         self.button_array = []
         self.extra_button_array = []
+        self.button_flags = []
         for pin in button_pins:
             self.button_array.append(Button(pin, self.button_callback, self.logger))
+            self.button_flags.append(False)
         
         for pin in extra_pins:
             self.extra_button_array.append(Button(pin, self.extra_button_callback, self.logger))
@@ -62,24 +86,34 @@ class GameTimer:
 
         #initialize audio player
         self.audio_player = AudioPlayer("audio", logger)
+        
 
+    def set_button_flags(self, index):
+        print(f"setting button flag {index}")
+        self.button_flags[index] = True
+        print(self.button_flags)
 
     def button_callback(self, channel):
         self.logger.info(f"Button {channel} pressed")
         self.tracker.increment_button_counter(channel)
+        #set the flag
+        self.set_button_flags(reversed_button_dict[channel])
+        
     
     def extra_button_callback(self, channel):
         self.logger.info(f"Extra GPIO {channel} pressed")
         self.tracker.increment_extra_gpio_counter(channel)
 
-    def on_rotary_change(self, value):
+    def on_rotary_change(self, value, direction):
         self.logger.info(value)
         #send the new encoder position to the data tracker
         self.tracker.update_encoder_position(value)
+        self.tracker.update_total_time(direction)
 
     def encoder_button_pressed(self, pin):
         self.logger.info(f"Encoder button on pin {pin} pressed")
         self.tracker.increment_encoder_counter()
+        self.tracker.update_increment()
    
     def test(self):
         self.stripPixels.start_rainbow_cycle()
@@ -98,6 +132,10 @@ class GameTimer:
             for index in range(len(self.extra_button_array)):
                 extra_button_states.append(self.extra_button_array[index].get_state())
             self.tracker.update_extra_button_states(extra_button_states)
+            self.handle_button_presses()
+            #handle counter, and if it is done, print a message
+            if(self.tracker.update_countdown()):
+                self.logger.info("time has expired")
             if(self.tracker.updateReady()):
                 self.logger.info("updating display")
                 self.oled_display.display_status(self.tracker.get_status())
@@ -110,6 +148,45 @@ class GameTimer:
             time.sleep(0.1)
 
             #self.oled_display.draw_multiple_texts()
+        self.logger.info("cleaning up")
+        self.stop()
+    def handle_button_presses(self):
+        for index, value in enumerate(self.button_flags):
+            if value:
+                self.button_flags[index] = False
+                if index + 1 == 1:
+                    print("1")
+                elif index + 1 == 2:
+                    print("2")
+                elif index + 1 == 3:
+                    print("3")
+                elif index + 1 == 4:
+                    print("4")
+                elif index + 1 == 5:
+                    print("5")
+                    self.tracker.start_countdown()
+                else:
+                    self.logger.error("unhandled button press")
+
+
+    def app(self):
+        self.logger.info("starting app")
+        while not kill_signal:
+            self.handle_button_presses()
+            match(self.state):
+                case GameTimerState.IDLE:
+                    print("idle")
+                case GameTimerState.TIMER_START:
+                    print("timer start")
+                case GameTimerState.COUNTING_DOWN:
+                    print("counting down")
+                case GameTimerState.WARNING:
+                    print("warning")
+                case GameTimerState.TIME_UP:
+                    print("time up")
+                case _:
+                    self.logger.error("got to unhandled state")
+            
         self.logger.info("cleaning up")
         self.stop()
     

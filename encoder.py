@@ -35,24 +35,30 @@ class Encoder:
     def _update2(self, channel: int) -> None:
         clkState = GPIO.input(self.clk_pin)
         dtState = GPIO.input(self.dt_pin)
+        direction = 1
         if clkState != self.clkLastState:
             if dtState != clkState:
                 self.counter += 1
+                direction = 1
             else:
+                direction = -1
                 self.counter -= 1
-            self.value_change_callback(self.counter)
+            self.value_change_callback(self.counter, direction)
         self.clkLastState = clkState
     def _update(self, channel: int) -> None:
         clkState = GPIO.input(self.clk_pin)
         dtState = GPIO.input(self.dt_pin)
 
         if channel == self.clk_pin and clkState != self.clkLastState:
+            direction = 1
             if clkState == 1:  # Only count when clk_pin goes high
                 if dtState != clkState:
                     self.counter += 1
+                    direction = 1
                 else:
                     self.counter -= 1
-                self.value_change_callback(self.counter)
+                    direction = -1
+                self.value_change_callback(self.counter, direction)
 
         self.clkLastState = clkState
 
