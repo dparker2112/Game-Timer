@@ -8,10 +8,10 @@ import RPi.GPIO as GPIO
 from button import Button
 from encoder import Encoder
 from oled import OLED_Display
-from led_strip2 import LEDStrip
+from led_strip import LEDStrip
 from data_tracker import DataTracker
 import board
-from audio_player_hardware_test import AudioPlayer
+from audio_player import AudioPlayer
 from logging.handlers import RotatingFileHandler
 import sys
 import signal
@@ -156,19 +156,81 @@ class GameTimer:
                 self.button_flags[index] = False
                 if index + 1 == 1:
                     print("1")
+                    self.tracker.set_total_time(30)
                 elif index + 1 == 2:
                     print("2")
+                    self.tracker.set_total_time(60)
                 elif index + 1 == 3:
                     print("3")
+                    self.tracker.set_total_time(90)
                 elif index + 1 == 4:
                     print("4")
+                    self.audio_player.stop()
+                    self.stripPixels.stop_current_pattern()
+                    self.stripPixels.start_rainbow_cycle()
+                    self.tracker.stop_countdown()
+
                 elif index + 1 == 5:
                     print("5")
-                    self.tracker.start_countdown()
+                    if self.tracker.countdown:
+                        if self.tracker.countdown_pause:
+                            self.tracker.resume_countdown()
+                            self.audio_player.resume_countdown_song()
+                            self.stripPixels.resume_theater_chase()
+                            print("resume")
+                        else:
+                            self.tracker.pause_countdown()
+                            self.stripPixels.pause_theater_chase()
+                            self.audio_player.pause_countdown_song()
+                            print("pause")
+                    else:
+                        self.tracker.start_countdown()
+                        self.stripPixels.stop_current_pattern()
+                        print(self.tracker.countdown_time)
+                        print("start")
+                        self.stripPixels.start_theater_chase(self.tracker.countdown_time)
+                        print("started")
+                        self.audio_player.play_countdown_song()
+                        
                 else:
                     self.logger.error("unhandled button press")
 
 
+    def app(self):
+        self.stripPixels.start_rainbow_cycle()
+        self.ringPixels.start_rainbow_cycle()
+
+        #self.audio_player.start_hardware_test()
+        
+        count = 0
+        count2 = 0
+        self.logger.info("starting test")
+        while not kill_signal:
+            current_button_states = []
+            for index in range(len(self.button_array)):
+                current_button_states.append(self.button_array[index].get_state())
+            self.tracker.update_button_states(current_button_states)
+            extra_button_states = []
+            for index in range(len(self.extra_button_array)):
+                extra_button_states.append(self.extra_button_array[index].get_state())
+            self.tracker.update_extra_button_states(extra_button_states)
+            self.handle_button_presses()
+            #handle counter, and if it is done, print a message
+            if(self.tracker.update_countdown()):
+                self.logger.info("time has expired")
+                self.audio_player.start_countdown_end_song()
+                self.stripPixels.stop_current_pattern()
+                self.stripPixels.start_game_over_pattern()
+                
+            if(self.tracker.updateReady()):
+                #self.logger.info("updating display")
+                self.oled_display.display_app(self.tracker.get_status())
+            time.sleep(0.02)
+
+            #self.oled_display.draw_multiple_texts()
+        self.logger.info("cleaning up")
+        self.stop()
+    """
     def app(self):
         self.logger.info("starting app")
         while not kill_signal:
@@ -186,14 +248,14 @@ class GameTimer:
                     print("time up")
                 case _:
                     self.logger.error("got to unhandled state")
-            
+        
         self.logger.info("cleaning up")
         self.stop()
-    
+    #"""
     def stop(self):
         self.logger.info("cleaning up")
-        self.stripPixels.stop_rainbow_cycle()
-        self.ringPixels.stop_rainbow_cycle()
+        self.stripPixels.stop_current_pattern()
+        self.ringPixels.stop_current_pattern()
         self.stripPixels.off()
         self.ringPixels.off()
         self.audio_player.stop_hardware_test()
@@ -281,7 +343,8 @@ def main():
         # sys.stdout = StreamToLogger(logger, logging.INFO)
         print("This is a test message") 
         game_timer = GameTimer(logger)
-        game_timer.test()
+        #game_timer.test()
+        game_timer.app()
     except KeyboardInterrupt:
         logger.info("cleanup")
         game_timer.stop()

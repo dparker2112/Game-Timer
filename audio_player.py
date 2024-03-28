@@ -1,65 +1,156 @@
 import pygame
 import random
 import os
+import threading
 from pydub import AudioSegment
 from io import BytesIO
 import time
 
 class AudioPlayer:
-    def __init__(self, folder_path):
+    def __init__(self, folder_path, logger):
+        self.logger = logger
         self.folder_path = folder_path
         self.file_list = [file for file in os.listdir(folder_path) if file.endswith('.wav')]
-        pygame.mixer.init()
-        pygame.mixer.init(buffer=512)  # Try different values like 2048, 4096, etc.
+        self.reinitialize_mixer()
+        self.test_running = False
+        self.thread = None
 
-
+    def _get_audio_info(self, file_path):
+        """Get the sample rate, bit depth, and size of the audio file."""
+        audio = AudioSegment.from_file(file_path)
+        sample_rate = audio.frame_rate
+        bit_depth = audio.sample_width * 8  # sample_width is in bytes
+        channels = audio.channels
+        file_size = os.path.getsize(file_path)  # File size in bytes
+        return sample_rate, audio.sample_width, file_size, channels
+    
     def _get_random_segment(self, file_path, length):
-        """Get a random 60-second segment from the audio file."""
         audio = AudioSegment.from_wav(file_path)
         if len(audio) <= length * 1000:
             return audio
         start = random.randint(0, len(audio) - length * 1000)
-        return audio[start:start + 60 * 1000]
+        return audio[start:start + length * 1000]
 
     def play_random_segment(self, length):
-        """Play a random 60-second segment from a random file."""
         if not self.file_list:
-            self.logger.error("No WAV files found in the folder.")
+            self.logger.info("No WAV files found in the folder.")
             return
-
+        
         audio_file = random.choice(self.file_list)
         file_path = os.path.join(self.folder_path, audio_file)
+        [sample_rate, sample_width, file_size, channels] = self._get_audio_info(file_path)
+        segment_size = sample_rate * sample_width * length * channels
+        audio_string = f"sample rate: {sample_rate}, sample_width: {sample_width}, channels: {channels}, segment size: {segment_size}, file size: {file_size}"
+        self.reinitialize_mixer()
+        
+        segment = self._get_random_segment(file_path, length)
         self.logger.info(f"playing {audio_file} for {str(length)}s")
-        #segment = self._get_random_segment(file_path, length)
-        #playback_io = BytesIO()
-        #segment.export(playback_io, format="wav")
-        #playback_io.seek(0)
+        self.logger.info(audio_string)
+        playback_io = BytesIO()
+        segment.export(playback_io, format="wav")
+        playback_io.seek(0)
 
-        pygame.mixer.music.load(file_path)
+        pygame.mixer.music.load(playback_io)
         pygame.mixer.music.play()
 
     def stop(self):
-        """Stop the currently playing audio."""
         pygame.mixer.music.stop()
-    
-    def hardwareTest(self):
-        playTime = getRandomTime()
-        audio_player.play_random_segment(playTime)
-        # To stop the playback
-        time.sleep(playTime)
-        audio_player.stop()
-        
 
-#ace of base...
+    def stop_and_cleanup(self):
+        """Stop the current playback and clean up the mixer."""
+        pygame.mixer.music.stop()
+        pygame.mixer.quit()
+
+    def reinitialize_mixer(self):
+        """Reinitialize the Pygame mixer."""
+        pygame.mixer.init(frequency=22050)
     
+    def hardware_test(self):
+        playTime = getRandomTime()
+        self.reinitialize_mixer()
+        self.play_random_segment(playTime)
+        for i in range(0, playTime):
+            time.sleep(1)
+            if(not self.test_running):
+                self.stop_and_cleanup()
+                return
+        for i in range(0, 5):
+            time.sleep(1)
+            if(not self.test_running):
+                self.stop_and_cleanup()
+                return
+        self.stop_and_cleanup()
+
+    def _hardware_test_thread(self):
+        while(self.test_running):
+            self.hardware_test()
+
+    def start_hardware_test(self):
+        self.test_running = True
+        if self.thread is None or not self.thread.is_alive():
+            self.thread = threading.Thread(target=self._hardware_test_thread)
+            self.thread.start()
+        else:
+            print("failed to start audio")
+
+    def stop_hardware_test(self):
+        self.test_running = False
+        if self.thread is not None:
+            self.thread.join()
+    
+    def play_countdown_song(self):
+        """Play a specific song for the countdown."""
+        audio_file = random.choice(self.file_list)
+        countdown_song_path = os.path.join(self.folder_path, audio_file)
+        if not os.path.exists(countdown_song_path):
+            self.logger.info("Countdown song file not found.")
+            return
+        
+        self.reinitialize_mixer()
+        pygame.mixer.music.load(countdown_song_path)
+        pygame.mixer.music.play(-1)  # Play indefinitely until stopped or paused
+
+    def pause_countdown_song(self):
+        """Pause the countdown song."""
+        pygame.mixer.music.pause()
+
+    def resume_countdown_song(self):
+        """Resume the paused countdown song."""
+        pygame.mixer.music.unpause()
+
+
+    def _play_countdown_end_song(self):
+        """Stop any currently playing music and play a specific song to signal the end of the countdown."""
+        audio_file = random.choice(self.file_list)
+        end_song_path = os.path.join(self.folder_path, audio_file)
+        if not os.path.exists(end_song_path):
+            self.logger.info("Countdown end song file not found.")
+            return
+        
+        pygame.mixer.music.stop()  # Stop any currently playing music
+        self.reinitialize_mixer()
+        pygame.mixer.music.load(end_song_path)
+        pygame.mixer.music.play()
+        song_count = 0
+        while self.countdown_over_playing and song_count < 10:
+            time.sleep(1)
+            song_count += 1
+        pygame.mixer.music.stop()  # Stop any currently playing music
+
+
+    
+    def start_countdown_end_song(self):
+        self.countdown_over_playing = True
+        if self.thread is None or not self.thread.is_alive():
+            self.thread = threading.Thread(target=self._play_countdown_end_song)
+            self.thread.start()
+
+
 def getRandomTime():
     return random.randint(10,40)
 
-# Usage
-audio_player = AudioPlayer("audio")
-for i in range(0,15):
-    playTime = getRandomTime()
-    audio_player.play_random_segment(playTime)
-    # To stop the playback
-    time.sleep(playTime)
-    audio_player.stop()
+if __name__ == "__main__":
+    audio_player = AudioPlayer("audio")
+    audio_player.start_hardware_test()
+    time.sleep(10*60)
+    audio_player.stop_hardware_test()

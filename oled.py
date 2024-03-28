@@ -91,6 +91,36 @@ class OLED_Display:
                     draw.text((55 + i * 15, 50), f"{count}", fill="black", font=small_font)
                 else:
                     draw.text((55 + i * 15, 50), f"{count}", fill="white", font=small_font)
+    def display_app(self, status):
+        # Load a font in two different sizes
+        small_font = ImageFont.truetype("DejaVuSans.ttf", 8)
+        large_font = ImageFont.truetype("DejaVuSans.ttf", 24)  # Adjust size as needed
+
+        with canvas(self.device) as draw:
+            #draw.rectangle(self.device.bounding_box, outline="white", fill="black")
+            
+             # Format the total time
+            total_time = round(status['total_time'], 1)
+            time_str = "{:04.1f}".format(total_time)  # Ensures two digits before and one after the decimal
+            before_decimal, after_decimal = time_str.split('.')
+
+            # Measure text width for accurate positioning
+            # Use ImageFont to measure text width for accurate positioning
+            before_width = large_font.getlength(before_decimal)
+            after_width = large_font.getlength("." + after_decimal)
+
+            # Calculate the x position to center on the decimal point
+            center_point = self.device.width // 2
+            before_x = center_point - before_width
+            after_x = center_point
+
+            # Display the time centered on the decimal point
+            draw.text((before_x, 20), before_decimal, fill="white", font=large_font)
+            draw.text((after_x, 20), "." + after_decimal, fill="white", font=large_font)
+
+            # Display increment with small font
+            draw.text((110, 10), f"{status['increment']}", fill="white", font=small_font)
+
 
 def main():
     # Example usage

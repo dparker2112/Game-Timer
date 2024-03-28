@@ -14,17 +14,37 @@ class DataTracker:
         self.large_counter = 0
         self.button_pin_to_index = {pin: index for index, pin in enumerate(button_pins)}
         self.extra_gpio_to_index = {pin: index for index, pin in enumerate(extra_gpio)}
-        self.increment = 0.5
-        self.time = 5
+        self.increment = 5
+        self.time = 30
         self.countdown_time = self.time
+        self.remaining_time = 0
         self.time_left = 0
         self.countdown = False
+        self.countdown_pause = False
         self.lastUpdate = 0
     def start_countdown(self):
         self.countdown_time = self.time
         self.countdown = True
+        self.countdown_pause = False
         self.start_time = time.time()
+
+    def pause_countdown(self):
+        self.countdown_pause = True
+        runtime = time.time() - self.start_time
+        self.remaining_time = self.countdown_time - runtime
+    
+    def stop_countdown(self):
+        self.countdown = False
+
+    
+    def resume_countdown(self):
+        self.countdown_pause = False
+        self.countdown_time = self.remaining_time
+        self.start_time = time.time()
+
     def update_countdown(self):
+        if self.countdown_pause:
+            return False
         if self.countdown:
             runtime = time.time() - self.start_time
             if(runtime >= self.countdown_time):
@@ -77,22 +97,34 @@ class DataTracker:
     
     def update_total_time(self, direction):
         self.update = True
+        temp = self.time
         self.time = self.time + direction * self.increment
+        if(self.time <= 0):
+            self.time = temp
         self.logger.info(f"updated time: {self.time}")
-    
+
+    def set_total_time(self, seconds):
+        self.update = True
+        self.time = seconds
+        self.logger.info(f"updated time: {self.time}")
+
     def update_increment(self):
         self.update = True
-        if self.increment == 0.5:
-            self.increment = 1
-        elif self.increment == 1:
-            self.increment = 0.1
+        if self.increment == 1:
+            self.increment = 5
+        elif self.increment == 5:
+            self.increment = 10
         else:
-            self.increment = 0.5
+            self.increment = 1
 
     def increment_encoder_counter(self):
         self.update = True
         self.encoder_button_presses += 1
 
+    def increment_large_counter(self):
+        self.update = True
+        self.large_counter += 1
+    
     def increment_large_counter(self):
         self.update = True
         self.large_counter += 1
@@ -105,7 +137,7 @@ class DataTracker:
     def get_status(self):
         self.update = False
         displayTime = self.time
-        if self.countdown:
+        if self.countdown or self.countdown_pause:
             displayTime = self.time_left
         return {
             "button_presses": self.button_presses,
