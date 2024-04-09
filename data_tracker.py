@@ -35,8 +35,8 @@ class DataTracker:
     
     def stop_countdown(self):
         self.countdown = False
+        self.countdown_pause = False
 
-    
     def resume_countdown(self):
         self.countdown_pause = False
         self.countdown_time = self.remaining_time

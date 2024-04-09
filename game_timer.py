@@ -168,6 +168,8 @@ class GameTimer:
                     self.audio_player.stop()
                     self.stripPixels.stop_current_pattern()
                     self.stripPixels.start_rainbow_cycle()
+                    self.ringPixels.stop_current_pattern()
+                    self.ringPixels.start_rainbow_cycle()
                     self.tracker.stop_countdown()
 
                 elif index + 1 == 5:
@@ -177,18 +179,22 @@ class GameTimer:
                             self.tracker.resume_countdown()
                             self.audio_player.resume_countdown_song()
                             self.stripPixels.resume_theater_chase()
+                            self.ringPixels.resume_theater_chase()
                             print("resume")
                         else:
                             self.tracker.pause_countdown()
                             self.stripPixels.pause_theater_chase()
+                            self.ringPixels.pause_theater_chase()
                             self.audio_player.pause_countdown_song()
                             print("pause")
                     else:
                         self.tracker.start_countdown()
                         self.stripPixels.stop_current_pattern()
+                        self.ringPixels.stop_current_pattern()
                         print(self.tracker.countdown_time)
                         print("start")
                         self.stripPixels.start_theater_chase(self.tracker.countdown_time)
+                        self.ringPixels.start_theater_chase(self.tracker.countdown_time)
                         print("started")
                         self.audio_player.play_countdown_song()
                         
@@ -221,6 +227,8 @@ class GameTimer:
                 self.audio_player.start_countdown_end_song()
                 self.stripPixels.stop_current_pattern()
                 self.stripPixels.start_game_over_pattern()
+                self.ringPixels.stop_current_pattern()
+                self.ringPixels.start_game_over_pattern()
                 
             if(self.tracker.updateReady()):
                 #self.logger.info("updating display")
@@ -230,28 +238,7 @@ class GameTimer:
             #self.oled_display.draw_multiple_texts()
         self.logger.info("cleaning up")
         self.stop()
-    """
-    def app(self):
-        self.logger.info("starting app")
-        while not kill_signal:
-            self.handle_button_presses()
-            match(self.state):
-                case GameTimerState.IDLE:
-                    print("idle")
-                case GameTimerState.TIMER_START:
-                    print("timer start")
-                case GameTimerState.COUNTING_DOWN:
-                    print("counting down")
-                case GameTimerState.WARNING:
-                    print("warning")
-                case GameTimerState.TIME_UP:
-                    print("time up")
-                case _:
-                    self.logger.error("got to unhandled state")
-        
-        self.logger.info("cleaning up")
-        self.stop()
-    #"""
+
     def stop(self):
         self.logger.info("cleaning up")
         self.stripPixels.stop_current_pattern()
