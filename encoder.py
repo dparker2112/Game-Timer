@@ -30,7 +30,7 @@ class Encoder:
 
         if self.button_pin is not None and button_callback is not None:
             GPIO.setup(button_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-            GPIO.add_event_detect(button_pin, GPIO.FALLING, callback=button_callback, bouncetime=200)
+            GPIO.add_event_detect(button_pin, GPIO.FALLING, callback=button_callback, bouncetime=400)
 
     def _update2(self, channel: int) -> None:
         clkState = GPIO.input(self.clk_pin)
