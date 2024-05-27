@@ -91,6 +91,7 @@ class OLED_Display:
                     draw.text((55 + i * 15, 50), f"{count}", fill="black", font=small_font)
                 else:
                     draw.text((55 + i * 15, 50), f"{count}", fill="white", font=small_font)
+    
     def display_app(self, status):
         # Load a font in two different sizes
         small_font = ImageFont.truetype("DejaVuSans.ttf", 8)
@@ -131,11 +132,16 @@ class OLED_Display:
             width = 4  # Adjust the width as needed
             height = 4  # Adjust the height as needed
             if(status['drive']):
-                draw.rectangle([x_pos, y_pos, x_pos + width, y_pos + height], fill="white")
-            if(status['game_status']):
-                x_pos = x_pos + width + 2
-                draw.rectangle([x_pos, y_pos, x_pos + width, y_pos + height], fill="white")
-                
+                #modify to say name
+                draw.text((0, 0), "drive detected", fill="white", font=small_font)
+                if(status['game_status']):
+                    draw.text((75, 0), "game loaded", fill="white", font=small_font)
+                else:
+                    draw.text((75, 0), "invalid drive", fill="white", font=small_font)
+
+            else:
+                draw.text((0, 0), "no drive", fill="white", font=small_font)
+            
 
 def main():
     # Example usage
