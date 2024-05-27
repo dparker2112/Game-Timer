@@ -20,6 +20,7 @@ import pygame
 from detect_drive import detect_usb_drives, copy_drive, mount_drive, unmount_drive
 from SoundFileParser import SoundFileParser
 from play_sounds2 import SoundPlayer
+import random
 
 class GameTimerState(Enum):
     IDLE = 0
@@ -222,7 +223,7 @@ class GameTimer:
                     self.tracker.set_total_time(90)
                 elif index + 1 == 3:
                     print("3")
-                    self.tracker.set_total_time(90)
+                    self.tracker.set_total_time(random.randint(60, 120))
                 elif index + 1 == 4:
                     print("4")
                     if self.tracker.countdown_active():
@@ -306,8 +307,6 @@ class GameTimer:
                         self.tracker.setGameLoaded(self.gameLoaded)
                         self.tracker.setGame(tempGame)
 
-
-        
 
     def app(self):
         self.stripPixels.start_rainbow_cycle()
