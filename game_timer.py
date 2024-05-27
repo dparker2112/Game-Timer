@@ -224,6 +224,10 @@ class GameTimer:
                 elif index + 1 == 3:
                     print("3")
                     self.tracker.set_total_time(random.randint(60, 120))
+                    if self.sound_dir_key == 'r':
+                        self.update_current_sound()
+                    else:
+                        self.update_audio_directory('r')
                 elif index + 1 == 4:
                     print("4")
                     if self.tracker.countdown_active():
