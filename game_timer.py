@@ -16,6 +16,10 @@ from logging.handlers import RotatingFileHandler
 import sys
 import signal
 from enum import Enum
+import pygame
+from detect_drive import detect_usb_drives, copy_drive, mount_drive, unmount_drive
+from SoundFileParser import SoundFileParser
+from play_sounds2 import SoundPlayer
 
 class GameTimerState(Enum):
     IDLE = 0
@@ -65,6 +69,15 @@ class GameTimer:
         self.button_array = []
         self.extra_button_array = []
         self.button_flags = []
+        self.drive = False
+        self.gameLoaded = False
+        self.activeGame = None
+        base_dir = "sounds"
+        soundFileParser = SoundFileParser(base_dir)
+        self.default_game_title = soundFileParser.get_game_title()
+        self.default_sound_dirs = soundFileParser.get_sound_dict()
+        self.sound_dir_key = "s"
+        
         for pin in button_pins:
             self.button_array.append(Button(pin, self.button_callback, self.logger))
             self.button_flags.append(False)
@@ -80,13 +93,48 @@ class GameTimer:
         # Initialize Tracker class
         self.tracker = DataTracker(logger, button_pins, extra_pins)
 
+        self.tracker.setGame(self.default_game_title)
+        self.loadedSounds = dict()
+
+
         #initialize led strips
         self.ringPixels = LEDStrip(start_pixel=0, length=num_pixels_ring, gpio=pixel_pin, num_pixels_total=num_pixels_ring+num_pixels_strip)
         self.stripPixels = LEDStrip(start_pixel=num_pixels_ring, length=num_pixels_strip)
-
-        #initialize audio player
-        self.audio_player = AudioPlayer("audio", logger)
         
+        self.update_current_sound()
+        #initialize audio player
+        #self.audio_player = AudioPlayer("audio", logger)
+        self.initialize_pygame()
+
+    def update_audio_directory(self, key):
+        if self.gameLoaded:
+            self.sound_dir_key = key
+            sounds, sound_dir = self.loadedSounds[key]
+            self.player = SoundPlayer(sounds, sound_dir)
+            self.player.select_random_sound()
+            self.tracker.setSoundFile(key, self.player.get_current_sound())
+
+        else:
+            self.sound_dir_key = key
+            sounds, sound_dir = self.default_sound_dirs[key]
+            self.player = SoundPlayer(sounds, sound_dir)
+            self.player.select_random_sound()
+            self.tracker.setSoundFile(key, self.player.get_current_sound())
+    
+    def update_current_sound(self):
+        if self.gameLoaded:
+            sounds, sound_dir = self.loadedSounds[self.sound_dir_key]
+            self.player = SoundPlayer(sounds, sound_dir)
+            self.player.select_random_sound()
+            self.tracker.setSoundFile(self.sound_dir_key,self.player.get_current_sound())
+
+        else:
+            sounds, sound_dir = self.default_sound_dirs[self.sound_dir_key]
+            self.player = SoundPlayer(sounds, sound_dir)
+            self.player.select_random_sound()
+            self.tracker.setSoundFile(self.sound_dir_key,self.player.get_current_sound())
+        print(self.player.get_current_sound())
+
 
     def set_button_flags(self, index):
         #print(f"setting button flag {index}")
@@ -109,6 +157,8 @@ class GameTimer:
         #send the new encoder position to the data tracker
         self.tracker.update_encoder_position(value)
         self.tracker.update_total_time(direction)
+        if self.sound_dir_key != 'r':
+            self.update_audio_directory('r')
 
     def encoder_button_pressed(self, pin):
         self.logger.info(f"Encoder button on pin {pin} pressed")
@@ -150,34 +200,46 @@ class GameTimer:
             #self.oled_display.draw_multiple_texts()
         self.logger.info("cleaning up")
         self.stop()
+
     def handle_button_presses(self):
         for index, value in enumerate(self.button_flags):
             if value:
                 self.button_flags[index] = False
                 if index + 1 == 1:
                     print("1")
-                    self.tracker.set_total_time(30)
-                elif index + 1 == 2:
-                    print("2")
+                    if self.sound_dir_key == 's':
+                        self.update_current_sound()
+                    else:
+                        self.update_audio_directory('s')
                     self.tracker.set_total_time(60)
+                elif index + 1 == 2:
+
+                    if self.sound_dir_key == 'n':
+                        self.update_current_sound()
+                    else:
+                        self.update_audio_directory('n')
+                    print("2")
+                    self.tracker.set_total_time(90)
                 elif index + 1 == 3:
                     print("3")
                     self.tracker.set_total_time(90)
                 elif index + 1 == 4:
                     print("4")
-                    self.audio_player.stop()
-                    self.stripPixels.stop_current_pattern()
-                    self.stripPixels.start_rainbow_cycle()
-                    self.ringPixels.stop_current_pattern()
-                    self.ringPixels.start_rainbow_cycle()
-                    self.tracker.stop_countdown()
+                    if self.tracker.countdown_active():
+                        self.player.stop()
+                        self.stripPixels.stop_current_pattern()
+                        self.stripPixels.start_rainbow_cycle()
+                        self.ringPixels.stop_current_pattern()
+                        self.ringPixels.start_rainbow_cycle()
+                        self.tracker.stop_countdown()
 
                 elif index + 1 == 5:
                     print("5")
                     if self.tracker.countdown:
                         if self.tracker.countdown_pause:
                             self.tracker.resume_countdown()
-                            self.audio_player.resume_countdown_song()
+                            self.player.pause()
+                            #self.audio_player.resume_countdown_song()
                             self.stripPixels.resume_theater_chase()
                             self.ringPixels.resume_theater_chase()
                             print("resume")
@@ -185,7 +247,8 @@ class GameTimer:
                             self.tracker.pause_countdown()
                             self.stripPixels.pause_theater_chase()
                             self.ringPixels.pause_theater_chase()
-                            self.audio_player.pause_countdown_song()
+                            self.player.pause()
+                            #self.audio_player.pause_countdown_song()
                             print("pause")
                     else:
                         self.tracker.start_countdown()
@@ -196,22 +259,65 @@ class GameTimer:
                         self.stripPixels.start_theater_chase(self.tracker.countdown_time)
                         self.ringPixels.start_theater_chase(self.tracker.countdown_time)
                         print("started")
-                        self.audio_player.play_countdown_song()
+                        self.player.start(self.tracker.countdown_time)
+                        #self.audio_player.play_countdown_song()
                         
                 else:
                     self.logger.error("unhandled button press")
 
+    def manage_sound_files(self):
+        if not self.tracker.countdown_active():
+            self.base_dir = "sounds"
+            drive_address = detect_usb_drives()
+            if self.drive:
+                if drive_address == None:
+                    self.base_dir = "sounds"
+                    self.drive = False
+                    self.tracker.setDrive(self.drive)
+                    print("drive removed")
+                    self.tracker.setGame(self.default_game_title)
+                    self.gameLoaded = False
+                    self.tracker.setGameLoaded(self.gameLoaded)
+            else:
+                if drive_address:
+                    self.drive = True
+                    self.tracker.setDrive(self.drive)
+                    mount_point = mount_drive(drive_address)
+                    print(f"drive detected at {drive_address}, mounted at {mount_point}")
+                    soundFileParser = SoundFileParser(mount_point)
+                    usb_game_title = soundFileParser.get_game_title()
+                    sound_dirs = soundFileParser.get_sound_dict()
+
+                    unmount_drive(mount_point)
+                    print(usb_game_title)
+                    print(sound_dirs)
+
+                    if usb_game_title and len(sound_dirs.keys()) > 0:
+                        soundFileParser = SoundFileParser("temp")
+                        tempGame = soundFileParser.get_game_title()
+                        if tempGame != usb_game_title:
+                            print("copying game")
+                            copy_drive(drive_address, "temp", overwrite=True)
+
+                        else:
+                            print("game already copied")
+                        self.gameLoaded = True
+                        self.loadedSounds = soundFileParser.get_sound_dict()
+                        self.tracker.setGameLoaded(self.gameLoaded)
+                        self.tracker.setGame(tempGame)
+
+
+        
 
     def app(self):
         self.stripPixels.start_rainbow_cycle()
         self.ringPixels.start_rainbow_cycle()
-
         #self.audio_player.start_hardware_test()
-        
         count = 0
         count2 = 0
         self.logger.info("starting test")
         while not kill_signal:
+            self.manage_sound_files()
             current_button_states = []
             for index in range(len(self.button_array)):
                 current_button_states.append(self.button_array[index].get_state())
@@ -224,7 +330,7 @@ class GameTimer:
             #handle counter, and if it is done, print a message
             if(self.tracker.update_countdown()):
                 self.logger.info("time has expired")
-                self.audio_player.start_countdown_end_song()
+                #self.audio_player.start_countdown_end_song()
                 self.stripPixels.stop_current_pattern()
                 self.stripPixels.start_game_over_pattern()
                 self.ringPixels.stop_current_pattern()
@@ -245,8 +351,14 @@ class GameTimer:
         self.ringPixels.stop_current_pattern()
         self.stripPixels.off()
         self.ringPixels.off()
-        self.audio_player.stop_hardware_test()
+        self.player.stop()
+        #self.audio_player.stop_hardware_test()
         self.oled_display.clear_display()
+
+    def initialize_pygame(self):
+        pygame.init()
+        pygame.mixer.init()
+        print("Pygame initialized")
 
 
 def setup_logging():
@@ -318,7 +430,6 @@ def sigterm_handler(_signo, _stack_frame):
 
 # Register the SIGTERM handler
 signal.signal(signal.SIGTERM, sigterm_handler)
-
 
 
 

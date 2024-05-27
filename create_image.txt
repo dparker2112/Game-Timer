@@ -61,3 +61,9 @@ install pygame (for audio playback):
 pip install pygame
 pip install pydub
 sudo apt-get install ffmpeg
+
+pip install pyudev
+
+sudo apt-get update
+sudo apt-get install portaudio19-dev
+pip install pyaudio

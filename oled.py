@@ -95,6 +95,7 @@ class OLED_Display:
         # Load a font in two different sizes
         small_font = ImageFont.truetype("DejaVuSans.ttf", 8)
         large_font = ImageFont.truetype("DejaVuSans.ttf", 24)  # Adjust size as needed
+        med_font = ImageFont.truetype("DejaVuSans.ttf", 10)  # Adjust size as needed
 
         with canvas(self.device) as draw:
             #draw.rectangle(self.device.bounding_box, outline="white", fill="black")
@@ -115,12 +116,26 @@ class OLED_Display:
             after_x = center_point
 
             # Display the time centered on the decimal point
-            draw.text((before_x, 20), before_decimal, fill="white", font=large_font)
-            draw.text((after_x, 20), "." + after_decimal, fill="white", font=large_font)
+            draw.text((before_x, 10), before_decimal, fill="white", font=large_font)
+            draw.text((after_x, 10), "." + after_decimal, fill="white", font=large_font)
 
             # Display increment with small font
             draw.text((110, 10), f"{status['increment']}", fill="white", font=small_font)
 
+            # Display increment with small font
+            draw.text((0, 40), f"G: {status['game_title']}", fill="white", font=med_font)
+            draw.text((0, 52), f"S: {status['sound_file']}", fill="white", font=med_font)
+            
+            x_pos = 2
+            y_pos = 2  # Adjust if necessary
+            width = 4  # Adjust the width as needed
+            height = 4  # Adjust the height as needed
+            if(status['drive']):
+                draw.rectangle([x_pos, y_pos, x_pos + width, y_pos + height], fill="white")
+            if(status['game_status']):
+                x_pos = x_pos + width + 2
+                draw.rectangle([x_pos, y_pos, x_pos + width, y_pos + height], fill="white")
+                
 
 def main():
     # Example usage

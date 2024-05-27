@@ -15,13 +15,22 @@ class DataTracker:
         self.button_pin_to_index = {pin: index for index, pin in enumerate(button_pins)}
         self.extra_gpio_to_index = {pin: index for index, pin in enumerate(extra_gpio)}
         self.increment = 5
-        self.time = 30
+        self.time = 60
         self.countdown_time = self.time
         self.remaining_time = 0
         self.time_left = 0
         self.countdown = False
         self.countdown_pause = False
         self.lastUpdate = 0
+        self.game = ""
+        self.soundFile = ""
+        self.game_status = False
+        self.drive = False
+        self.key = ""
+
+    def countdown_active(self):
+        return self.countdown
+
     def start_countdown(self):
         self.countdown_time = self.time
         self.countdown = True
@@ -133,6 +142,23 @@ class DataTracker:
         if(self.update):
             self.lastUpdate = time.time()
         return self.update
+    
+    def setGame(self, game_title):
+        self.game = game_title
+        self.update = True
+
+    def setDrive(self, drive_status):
+        self.drive = drive_status
+        self.update = True
+
+    def setGameLoaded(self, game_loaded_status):
+        self.game_status = game_loaded_status
+        self.update = True
+    
+    def setSoundFile(self, key, sound_file):
+        self.soundFile = sound_file
+        self.key = key
+        self.update = True
 
     def get_status(self):
         self.update = False
@@ -149,4 +175,8 @@ class DataTracker:
             "increment" : self.increment,
             "button_states": self.button_states,
             "extra_button_states": self.extra_button_states,
+            "sound_file" : f"{self.key}/{self.soundFile}",
+            "game_title" : self.game,
+            "drive": self.drive,
+            "game_status" : self.game_status
         }
