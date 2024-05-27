@@ -67,3 +67,8 @@ pip install pyudev
 sudo apt-get update
 sudo apt-get install portaudio19-dev
 pip install pyaudio
+pip install simpleaudio
+
+sudo apt-get update
+sudo apt-get install vlc
+pip install python-vlc
