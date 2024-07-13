@@ -23,12 +23,24 @@ class SoundPlayer():
 
     def start(self, duration):
         if self.soundPlayerThread is None:
+            self.paused = False
             self.duration = duration
             self.soundPlayerThread = threading.Thread(target=self.run)
             self.soundPlayerThread.start()
             self.running = True
+        else:
+            self.stop()
+            if self.soundPlayerThread is None:
+                self.paused = False
+                self.duration = duration
+                self.soundPlayerThread = threading.Thread(target=self.run)
+                self.soundPlayerThread.start()
+                self.running = True
+            else:
+                print("failed to start audio")
 
     def join(self):
+        self.running = False
         if self.soundPlayerThread:
             self.soundPlayerThread.join()
             self.soundPlayerThread = None
@@ -53,6 +65,7 @@ class SoundPlayer():
             self.player.stop()
             self.play_sound(sound_files[1])
             time.sleep(2)
+        print("exiting sound thread")
 
     def play_sound(self, sound_file, loop=False):
         sound_path = os.path.join(self.sound_dir, sound_file)
@@ -86,7 +99,10 @@ class SoundPlayer():
     def stop(self):
         self.running = False
         if self.player:
+            print("stopping")
             self.player.stop()
+        print("stopping")
+        self.join()
         print("Stopped")
 
     def select_random_sound(self):
