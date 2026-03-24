@@ -17,6 +17,7 @@ import sys
 import signal
 from enum import Enum
 import pygame
+import hashlib
 from detect_drive import detect_usb_drives, copy_drive, mount_drive, unmount_drive
 from SoundFileParser import SoundFileParser
 from play_sounds2 import SoundPlayer
@@ -96,6 +97,7 @@ class GameTimer:
 
         self.tracker.setGame(self.default_game_title)
         self.loadedSounds = dict()
+        self.active_sound_dir = None
 
 
         #initialize led strips
@@ -111,6 +113,9 @@ class GameTimer:
         if self.gameLoaded:
             self.sound_dir_key = key
             sounds, sound_dir = self.loadedSounds[key]
+            if self.active_sound_dir != sound_dir:
+                self.logger.info(f"active sound_dir -> {sound_dir} (source=temp, bank={key})")
+                self.active_sound_dir = sound_dir
             self.player = SoundPlayer(sounds, sound_dir)
             self.player.select_random_sound()
             self.tracker.setSoundFile(key, self.player.get_current_sound())
@@ -118,6 +123,9 @@ class GameTimer:
         else:
             self.sound_dir_key = key
             sounds, sound_dir = self.default_sound_dirs[key]
+            if self.active_sound_dir != sound_dir:
+                self.logger.info(f"active sound_dir -> {sound_dir} (source=sounds, bank={key})")
+                self.active_sound_dir = sound_dir
             self.player = SoundPlayer(sounds, sound_dir)
             self.player.select_random_sound()
             self.tracker.setSoundFile(key, self.player.get_current_sound())
@@ -125,12 +133,18 @@ class GameTimer:
     def update_current_sound(self):
         if self.gameLoaded:
             sounds, sound_dir = self.loadedSounds[self.sound_dir_key]
+            if self.active_sound_dir != sound_dir:
+                self.logger.info(f"active sound_dir -> {sound_dir} (source=temp, bank={self.sound_dir_key})")
+                self.active_sound_dir = sound_dir
             self.player = SoundPlayer(sounds, sound_dir)
             self.player.select_random_sound()
             self.tracker.setSoundFile(self.sound_dir_key,self.player.get_current_sound())
 
         else:
             sounds, sound_dir = self.default_sound_dirs[self.sound_dir_key]
+            if self.active_sound_dir != sound_dir:
+                self.logger.info(f"active sound_dir -> {sound_dir} (source=sounds, bank={self.sound_dir_key})")
+                self.active_sound_dir = sound_dir
             self.player = SoundPlayer(sounds, sound_dir)
             self.player.select_random_sound()
             self.tracker.setSoundFile(self.sound_dir_key,self.player.get_current_sound())
@@ -283,33 +297,93 @@ class GameTimer:
                     self.tracker.setGame(self.default_game_title)
                     self.gameLoaded = False
                     self.tracker.setGameLoaded(self.gameLoaded)
+                    #self.update_current_sound()
             else:
                 if drive_address:
                     self.drive = True
                     self.tracker.setDrive(self.drive)
                     mount_point = mount_drive(drive_address)
                     print(f"drive detected at {drive_address}, mounted at {mount_point}")
+
+                    def _should_skip_hash_item(name):
+                        if name.startswith('.') or name.endswith(('.tmp', '~')):
+                            return True
+                        lowered = name.lower()
+                        return lowered in {"desktop.ini", "thumbs.db"} or name == "System Volume Information"
+
+                    def _compute_usb_content_sha256(root_dir):
+                        h = hashlib.sha256()
+                        for current_root, dirs, files in os.walk(root_dir):
+                            dirs[:] = sorted([d for d in dirs if not _should_skip_hash_item(d)])
+                            for filename in sorted(files):
+                                if _should_skip_hash_item(filename):
+                                    continue
+                                full_path = os.path.join(current_root, filename)
+                                rel_path = os.path.relpath(full_path, root_dir)
+                                h.update(rel_path.encode('utf-8', errors='ignore'))
+                                with open(full_path, 'rb') as f:
+                                    while True:
+                                        chunk = f.read(1024 * 64)
+                                        if not chunk:
+                                            break
+                                        h.update(chunk)
+                        return h.hexdigest()
+
                     soundFileParser = SoundFileParser(mount_point)
                     usb_game_title = soundFileParser.get_game_title()
                     sound_dirs = soundFileParser.get_sound_dict()
+
+                    has_sounds = any(sound_dirs[k][0] for k in sound_dirs)
+
+                    usb_hash = None
+                    try:
+                        usb_hash = _compute_usb_content_sha256(mount_point)
+                        print(f"usb content sha256: {usb_hash}")
+                    except Exception as e:
+                        print(f"Error computing usb hash: {e}")
 
                     unmount_drive(mount_point)
                     print(usb_game_title)
                     print(sound_dirs)
 
-                    if usb_game_title and len(sound_dirs.keys()) > 0:
-                        soundFileParser = SoundFileParser("temp")
-                        tempGame = soundFileParser.get_game_title()
-                        if tempGame != usb_game_title:
+                    if usb_game_title and has_sounds:
+                        temp_parser_before = SoundFileParser("temp")
+                        temp_game_before = temp_parser_before.get_game_title()
+                        temp_hash_path = os.path.join("temp", ".usb_content_sha256")
+                        temp_hash_before = None
+                        try:
+                            with open(temp_hash_path, 'r') as f:
+                                temp_hash_before = f.read().strip() or None
+                        except Exception:
+                            temp_hash_before = None
+
+                        needs_copy = temp_game_before != usb_game_title
+                        if usb_hash and temp_hash_before and usb_hash != temp_hash_before:
+                            needs_copy = True
+                        if usb_hash and not temp_hash_before:
+                            needs_copy = True
+
+                        if needs_copy:
                             print("copying game")
                             copy_drive(drive_address, "temp", overwrite=True)
 
+                            if usb_hash:
+                                try:
+                                    with open(temp_hash_path, 'w') as f:
+                                        f.write(usb_hash)
+                                except Exception as e:
+                                    print(f"Error writing usb hash: {e}")
+
                         else:
                             print("game already copied")
+
+                        temp_parser = SoundFileParser("temp")
+                        tempGame = temp_parser.get_game_title()
                         self.gameLoaded = True
-                        self.loadedSounds = soundFileParser.get_sound_dict()
+                        self.loadedSounds = temp_parser.get_sound_dict()
                         self.tracker.setGameLoaded(self.gameLoaded)
                         self.tracker.setGame(tempGame)
+                        #self.update_current_sound()
 
 
     def app(self):

@@ -49,9 +49,13 @@ def clear_directory(target_directory):
 
 def should_skip_file(filename):
     # Skip hidden files and temporary files
-    return filename.startswith('.') or filename.endswith(('.tmp', '~'))
+    if filename.startswith('.') or filename.endswith(('.tmp', '~')):
+        return True
+    lowered = filename.lower()
+    return lowered in {"desktop.ini", "thumbs.db"} or filename == "System Volume Information"
 
 def copy_drive(path, target_directory, overwrite=False):
+    mount_point = None
     try:
         mount_point = mount_drive(path)
         if overwrite:
@@ -77,7 +81,8 @@ def copy_drive(path, target_directory, overwrite=False):
     except Exception as e:
         print(f"Error: {e}")
     finally:
-        unmount_drive(mount_point)
+        if mount_point:
+            unmount_drive(mount_point)
 def main():
     print(detect_usb_drives())
 

@@ -28,6 +28,9 @@ class SoundFileParser:
         except:
             return temp_dict
         for entry in entries:
+            lowered = entry.lower()
+            if lowered in {"desktop.ini", "thumbs.db"}:
+                continue
             words = re.split('[_.]', entry)
             if len(words) < 3:
                 print(f"Error: Invalid file name '{entry}'")
@@ -53,9 +56,9 @@ class SoundFileParser:
     
     def load_sounds(self):
         sound_dict = {
-            'r': (self.process_directory(rand_sound_dir), os.path.join(base_dir, rand_sound_dir)),
-            's': (self.process_directory(short_sound_dir), os.path.join(base_dir, short_sound_dir)),
-            'n': (self.process_directory(long_sound_dir), os.path.join(base_dir, long_sound_dir))
+            'r': (self.process_directory(rand_sound_dir), os.path.join(self.base_dir, rand_sound_dir)),
+            's': (self.process_directory(short_sound_dir), os.path.join(self.base_dir, short_sound_dir)),
+            'n': (self.process_directory(long_sound_dir), os.path.join(self.base_dir, long_sound_dir))
         }
         return sound_dict
     
