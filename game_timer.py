@@ -23,6 +23,9 @@ from SoundFileParser import SoundFileParser
 from play_sounds2 import SoundPlayer
 import random
 
+# Logging configuration - switch between 'file' and 'journalctl'
+LOGGING_MODE = 'journalctl'  # Change to 'file' to use file-based logging
+
 class GameTimerState(Enum):
     IDLE = 0
     TIMER_START = 1
@@ -80,6 +83,9 @@ class GameTimer:
         self.default_sound_dirs = soundFileParser.get_sound_dict()
         self.sound_dir_key = "s"
         
+        # Check for persistent game on startup
+        self.check_for_persistent_game()
+        
         for pin in button_pins:
             self.button_array.append(Button(pin, self.button_callback, self.logger))
             self.button_flags.append(False)
@@ -95,7 +101,10 @@ class GameTimer:
         # Initialize Tracker class
         self.tracker = DataTracker(logger, button_pins, extra_pins)
 
-        self.tracker.setGame(self.default_game_title)
+        if self.gameLoaded:
+            self.tracker.setGame(self.activeGame)
+        else:
+            self.tracker.setGame(self.default_game_title)
         self.loadedSounds = dict()
         self.active_sound_dir = None
 
@@ -109,41 +118,65 @@ class GameTimer:
         #self.audio_player = AudioPlayer("audio", logger)
         self.initialize_pygame()
 
+    def check_for_persistent_game(self):
+        """Check if there's a valid game already loaded in temp directory"""
+        try:
+            temp_parser = SoundFileParser("temp")
+            temp_game = temp_parser.get_game_title()
+            temp_sound_dirs = temp_parser.get_sound_dict()
+            
+            # Check if temp directory has a valid game
+            if temp_game and temp_sound_dirs and any(temp_sound_dirs[k][0] for k in temp_sound_dirs):
+                self.gameLoaded = True
+                self.loadedSounds = temp_sound_dirs
+                self.activeGame = temp_game
+                print(f"Found persistent game: {temp_game}")
+            else:
+                print("No persistent game found, using defaults")
+                self.gameLoaded = False
+                self.activeGame = None
+        except Exception as e:
+            print(f"Error checking for persistent game: {e}")
+            self.gameLoaded = False
+            self.activeGame = None
+
     def update_audio_directory(self, key):
-        if self.gameLoaded:
-            self.sound_dir_key = key
+        self.sound_dir_key = key
+        
+        # Always prioritize loaded games over defaults
+        if self.gameLoaded and self.loadedSounds:
             sounds, sound_dir = self.loadedSounds[key]
             if self.active_sound_dir != sound_dir:
-                self.logger.info(f"active sound_dir -> {sound_dir} (source=temp, bank={key})")
+                self.logger.info(f"active sound_dir -> {sound_dir} (source=loaded, bank={key})")
                 self.active_sound_dir = sound_dir
             self.player = SoundPlayer(sounds, sound_dir)
             self.player.select_random_sound()
             self.tracker.setSoundFile(key, self.player.get_current_sound())
-
         else:
-            self.sound_dir_key = key
+            # Use defaults only if no game is loaded
             sounds, sound_dir = self.default_sound_dirs[key]
             if self.active_sound_dir != sound_dir:
-                self.logger.info(f"active sound_dir -> {sound_dir} (source=sounds, bank={key})")
+                self.logger.info(f"active sound_dir -> {sound_dir} (source=defaults, bank={key})")
                 self.active_sound_dir = sound_dir
             self.player = SoundPlayer(sounds, sound_dir)
             self.player.select_random_sound()
             self.tracker.setSoundFile(key, self.player.get_current_sound())
     
     def update_current_sound(self):
-        if self.gameLoaded:
+        # Always prioritize loaded games over defaults
+        if self.gameLoaded and self.loadedSounds:
             sounds, sound_dir = self.loadedSounds[self.sound_dir_key]
             if self.active_sound_dir != sound_dir:
-                self.logger.info(f"active sound_dir -> {sound_dir} (source=temp, bank={self.sound_dir_key})")
+                self.logger.info(f"active sound_dir -> {sound_dir} (source=loaded, bank={self.sound_dir_key})")
                 self.active_sound_dir = sound_dir
             self.player = SoundPlayer(sounds, sound_dir)
             self.player.select_random_sound()
             self.tracker.setSoundFile(self.sound_dir_key,self.player.get_current_sound())
-
         else:
+            # Use defaults only if no game is loaded
             sounds, sound_dir = self.default_sound_dirs[self.sound_dir_key]
             if self.active_sound_dir != sound_dir:
-                self.logger.info(f"active sound_dir -> {sound_dir} (source=sounds, bank={self.sound_dir_key})")
+                self.logger.info(f"active sound_dir -> {sound_dir} (source=defaults, bank={self.sound_dir_key})")
                 self.active_sound_dir = sound_dir
             self.player = SoundPlayer(sounds, sound_dir)
             self.player.select_random_sound()
@@ -290,16 +323,17 @@ class GameTimer:
             drive_address = detect_usb_drives()
             if self.drive:
                 if drive_address == None:
-                    self.base_dir = "sounds"
+                    # Drive removed - keep using loaded game, don't revert
                     self.drive = False
                     self.tracker.setDrive(self.drive)
-                    print("drive removed")
-                    self.tracker.setGame(self.default_game_title)
-                    self.gameLoaded = False
-                    self.tracker.setGameLoaded(self.gameLoaded)
-                    #self.update_current_sound()
+                    print("drive removed but keeping loaded game")
+                    # Don't revert to default - keep gameLoaded as is
+                else:
+                    # Drive still present - do nothing
+                    pass
             else:
                 if drive_address:
+                    # New drive detected - load game
                     self.drive = True
                     self.tracker.setDrive(self.drive)
                     mount_point = mount_drive(drive_address)
@@ -383,7 +417,8 @@ class GameTimer:
                         self.loadedSounds = temp_parser.get_sound_dict()
                         self.tracker.setGameLoaded(self.gameLoaded)
                         self.tracker.setGame(tempGame)
-                        #self.update_current_sound()
+                        print(f"Game loaded: {tempGame}")
+                        self.update_current_sound()
 
 
     def app(self):
@@ -439,6 +474,47 @@ class GameTimer:
 
 
 def setup_logging():
+    global LOGGING_MODE
+    
+    if LOGGING_MODE == 'journalctl':
+        return setup_journalctl_logging()
+    else:
+        return setup_file_logging()
+
+def setup_journalctl_logging():
+    """Setup logging to systemd journal (journalctl)"""
+    try:
+        import systemd.journal
+        # Create a logger that writes to systemd journal
+        logger = logging.getLogger('game_timer')
+        logger.setLevel(logging.INFO)
+        
+        # Remove any existing handlers
+        for handler in logger.handlers[:]:
+            logger.removeHandler(handler)
+        
+        # Add systemd journal handler
+        handler = systemd.journal.JournalHandler(SYSLOG_IDENTIFIER='game_timer')
+        handler.setLevel(logging.INFO)
+        
+        # Create a logging format
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        handler.setFormatter(formatter)
+        
+        # Add the handler to the logger
+        logger.addHandler(handler)
+        
+        print("Logging configured for journalctl - view with: journalctl -f -t game_timer")
+        return logger
+        
+    except ImportError:
+        print("Warning: systemd.journal not available, falling back to file logging")
+        global LOGGING_MODE
+        LOGGING_MODE = 'file'
+        return setup_file_logging()
+
+def setup_file_logging():
+    """Setup traditional file-based logging"""
     log_directory = "logs"
     log_filename = "my_app.log"
     # Create log directory if it does not exist
@@ -449,6 +525,10 @@ def setup_logging():
     # Create a logger object
     logger = logging.getLogger('my_app')
     logger.setLevel(logging.INFO)  # Set the logging level
+    
+    # Remove any existing handlers
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
     
     # Create a handler that writes log messages to a file, with log rotation
     handler = RotatingFileHandler(
@@ -463,7 +543,8 @@ def setup_logging():
 
     # Add the handler to the logger
     logger.addHandler(handler)
-
+    
+    print("Logging configured for file output - view logs in: logs/my_app.log")
     return logger
 
 def cleanup_logging(logger):

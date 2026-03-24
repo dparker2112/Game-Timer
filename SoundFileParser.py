@@ -36,22 +36,45 @@ class SoundFileParser:
                 print(f"Error: Invalid file name '{entry}'")
                 continue
 
+            # Extract key - support both numbered and named files
+            key_str = words[0]
             try:
-                key = int(words[0])
+                # Try to convert to int for backwards compatibility
+                key = int(key_str)
+                key_type = 'int'
             except ValueError:
-                #print(f"Error: Invalid key number in file name '{entry}'")
-                continue
+                # Use as string for named files
+                key = key_str
+                key_type = 'str'
             
             sound_type = words[1]
-            if key not in temp_dict:
-                temp_dict[key] = {'M': '', 'E': ''}
-            if sound_type in ['M', 'E']:
-                temp_dict[key][sound_type] = entry
-            else:
+            if sound_type not in ['M', 'E', 'B']:
                 print(f"Error: Unknown sound type '{sound_type}' in file '{entry}'")
+                continue
+            
+            # Initialize the sound entry if not exists
+            if key not in temp_dict:
+                temp_dict[key] = {'B': '', 'M': '', 'E': '', 'key_type': key_type}
+            
+            temp_dict[key][sound_type] = entry
 
-        # Validate and transfer only complete entries to the main dictionary
-        sound_dict = {key: [val['M'], val['E']] for key, val in temp_dict.items() if val['M'] and val['E']}
+        # Validate and transfer complete entries to the main dictionary
+        sound_dict = {}
+        for key, val in temp_dict.items():
+            # Must have at least M and E files
+            if val['M'] and val['E']:
+                if val['key_type'] == 'int':
+                    sound_dict[key] = [val['B'], val['M'], val['E']]
+                else:
+                    sound_dict[key] = [val['B'], val['M'], val['E']]
+            else:
+                missing = []
+                if not val['M']:
+                    missing.append('M')
+                if not val['E']:
+                    missing.append('E')
+                print(f"Warning: Skipping {key} - missing {', '.join(missing)} files")
+        
         return sound_dict
     
     def load_sounds(self):

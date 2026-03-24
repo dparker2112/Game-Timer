@@ -47,8 +47,24 @@ class SoundPlayer():
 
     def run(self):
         sound_files = self.sounds[self.current_sound]
-        print(f"Playing main sound: {sound_files[0]}")
-        if not self.play_sound(sound_files[0], loop=True):
+        beginning_sound = sound_files[0]
+        main_sound = sound_files[1]
+        ending_sound = sound_files[2]
+        
+        # Play beginning sound if available
+        if beginning_sound:
+            print(f"Playing beginning sound: {beginning_sound}")
+            duration = self.play_sound_with_duration(beginning_sound)
+            if duration > 0:
+                # Wait for the beginning sound to finish naturally
+                start_time = time.time()
+                while time.time() - start_time < duration and self.running:
+                    time.sleep(0.1)
+            else:
+                print("Error playing beginning sound")
+        
+        print(f"Playing main sound: {main_sound}")
+        if not self.play_sound(main_sound, loop=True):
             print("Error playing main sound")
             return
         main_sound_length = self.duration
@@ -63,11 +79,12 @@ class SoundPlayer():
         if self.running:
             print("Switching to ending sound.")
             self.player.stop()
-            self.play_sound(sound_files[1])
+            self.play_sound(ending_sound)
             time.sleep(2)
         print("exiting sound thread")
 
-    def play_sound(self, sound_file, loop=False):
+    def play_sound_with_duration(self, sound_file, loop=False):
+        """Play a sound and return the duration in seconds."""
         sound_path = os.path.join(self.sound_dir, sound_file)
         print(f"Loading sound from path: {sound_path}")
         try:
@@ -75,16 +92,28 @@ class SoundPlayer():
             self.player = vlc.MediaPlayer(sound_path)
             event_manager = self.player.event_manager()
             event_manager.event_attach(vlc.EventType.MediaPlayerEndReached, self.on_end_reached)
+            
+            # Get media duration
+            media = self.player.get_media()
+            media.parse()  # Parse to get accurate duration
+            duration_ms = media.get_duration()
+            duration_sec = duration_ms / 1000.0 if duration_ms > 0 else 0
+            
             self.player.play()
-            return True
+            return duration_sec
         except Exception as e:
             print(f"Error loading sound: {e}")
-            return False
+            return 0
 
     def on_end_reached(self, event):
         if self.loop:
             self.player.stop()
             self.player.play()
+
+    def play_sound(self, sound_file, loop=False):
+        """Legacy method for compatibility - calls play_sound_with_duration but ignores duration."""
+        self.play_sound_with_duration(sound_file, loop)
+        return True
 
     def pause(self):
         self.paused = not self.paused
@@ -108,10 +137,11 @@ class SoundPlayer():
     def select_random_sound(self):
         if self.sounds:
             self.current_sound = random.choice(list(self.sounds.keys()))
-            print(f"Selected sound {self.sounds[self.current_sound][0]}")
+            sound_files = self.sounds[self.current_sound]
+            print(f"Selected sound {sound_files[1]} (beginning: {sound_files[0] if sound_files[0] else 'None'}, ending: {sound_files[2]})")
 
     def get_current_sound(self):
-        return self.sounds[self.current_sound][0]
+        return self.sounds[self.current_sound][1]  # Return main sound (index 1)
 
 def input_thread(input_queue):
     while True:
