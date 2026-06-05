@@ -26,6 +26,10 @@ import random
 # Logging configuration - switch between 'file' and 'journalctl'
 LOGGING_MODE = 'journalctl'  # Change to 'file' to use file-based logging
 
+# Audio behavior: when True, stop (cut off) the ending sound exactly when the timer ends.
+# When False, allow the ending sound to continue playing after "time up".
+CUTOFF_END_SOUND_AT_TIMER_END = True
+
 class GameTimerState(Enum):
     IDLE = 0
     TIMER_START = 1
@@ -77,6 +81,7 @@ class GameTimer:
         self.drive = False
         self.gameLoaded = False
         self.activeGame = None
+        self.loadedSounds = dict()
         base_dir = "sounds"
         soundFileParser = SoundFileParser(base_dir)
         self.default_game_title = soundFileParser.get_game_title()
@@ -105,7 +110,6 @@ class GameTimer:
             self.tracker.setGame(self.activeGame)
         else:
             self.tracker.setGame(self.default_game_title)
-        self.loadedSounds = dict()
         self.active_sound_dir = None
 
 
@@ -134,10 +138,12 @@ class GameTimer:
             else:
                 print("No persistent game found, using defaults")
                 self.gameLoaded = False
+                self.loadedSounds = dict()
                 self.activeGame = None
         except Exception as e:
             print(f"Error checking for persistent game: {e}")
             self.gameLoaded = False
+            self.loadedSounds = dict()
             self.activeGame = None
 
     def update_audio_directory(self, key):
@@ -149,7 +155,7 @@ class GameTimer:
             if self.active_sound_dir != sound_dir:
                 self.logger.info(f"active sound_dir -> {sound_dir} (source=loaded, bank={key})")
                 self.active_sound_dir = sound_dir
-            self.player = SoundPlayer(sounds, sound_dir)
+            self.player = SoundPlayer(sounds, sound_dir, cutoff_end_sound=CUTOFF_END_SOUND_AT_TIMER_END)
             self.player.select_random_sound()
             self.tracker.setSoundFile(key, self.player.get_current_sound())
         else:
@@ -158,7 +164,7 @@ class GameTimer:
             if self.active_sound_dir != sound_dir:
                 self.logger.info(f"active sound_dir -> {sound_dir} (source=defaults, bank={key})")
                 self.active_sound_dir = sound_dir
-            self.player = SoundPlayer(sounds, sound_dir)
+            self.player = SoundPlayer(sounds, sound_dir, cutoff_end_sound=CUTOFF_END_SOUND_AT_TIMER_END)
             self.player.select_random_sound()
             self.tracker.setSoundFile(key, self.player.get_current_sound())
     
@@ -169,7 +175,7 @@ class GameTimer:
             if self.active_sound_dir != sound_dir:
                 self.logger.info(f"active sound_dir -> {sound_dir} (source=loaded, bank={self.sound_dir_key})")
                 self.active_sound_dir = sound_dir
-            self.player = SoundPlayer(sounds, sound_dir)
+            self.player = SoundPlayer(sounds, sound_dir, cutoff_end_sound=CUTOFF_END_SOUND_AT_TIMER_END)
             self.player.select_random_sound()
             self.tracker.setSoundFile(self.sound_dir_key,self.player.get_current_sound())
         else:
@@ -178,7 +184,7 @@ class GameTimer:
             if self.active_sound_dir != sound_dir:
                 self.logger.info(f"active sound_dir -> {sound_dir} (source=defaults, bank={self.sound_dir_key})")
                 self.active_sound_dir = sound_dir
-            self.player = SoundPlayer(sounds, sound_dir)
+            self.player = SoundPlayer(sounds, sound_dir, cutoff_end_sound=CUTOFF_END_SOUND_AT_TIMER_END)
             self.player.select_random_sound()
             self.tracker.setSoundFile(self.sound_dir_key,self.player.get_current_sound())
         print(self.player.get_current_sound())
@@ -372,15 +378,30 @@ class GameTimer:
                     usb_hash = None
                     try:
                         usb_hash = _compute_usb_content_sha256(mount_point)
-                        print(f"usb content sha256: {usb_hash}")
+                        print(f"usb content sha256: {usb_hash[:8] if usb_hash else 'None'}")
                     except Exception as e:
                         print(f"Error computing usb hash: {e}")
+                        # Continue without hash comparison - will copy based on title only
 
                     unmount_drive(mount_point)
                     print(usb_game_title)
                     print(sound_dirs)
 
                     if usb_game_title and has_sounds:
+                        # Check if we have valid sound files (not just empty entries)
+                        valid_sounds = {}
+                        for key, sounds in sound_dirs.items():
+                            sound_dict = sounds[0]  # Get the sound dictionary
+                            # Filter out entries with missing M files
+                            valid_entries = {k: v for k, v in sound_dict.items() if v[1]}  # v[1] is the M file
+                            if valid_entries:
+                                valid_sounds[key] = (valid_entries, sounds[1])
+                        
+                        if not valid_sounds:
+                            print("No valid sound files found (all missing M files)")
+                            unmount_drive(mount_point)
+                            return
+                        
                         temp_parser_before = SoundFileParser("temp")
                         temp_game_before = temp_parser_before.get_game_title()
                         temp_hash_path = os.path.join("temp", ".usb_content_sha256")
@@ -391,12 +412,15 @@ class GameTimer:
                         except Exception:
                             temp_hash_before = None
 
-                        needs_copy = temp_game_before != usb_game_title
+                        needs_copy = False
+                        if temp_game_before != usb_game_title:
+                            needs_copy = True
+                            print(f"Game title changed: {temp_game_before} -> {usb_game_title}")
                         if usb_hash and temp_hash_before and usb_hash != temp_hash_before:
                             needs_copy = True
-                        if usb_hash and not temp_hash_before:
-                            needs_copy = True
-
+                            print(f"Content hash changed: {temp_hash_before[:8]} -> {usb_hash[:8]}")
+                        
+                        # Only copy if we don't have a matching hash
                         if needs_copy:
                             print("copying game")
                             copy_drive(drive_address, "temp", overwrite=True)
@@ -405,11 +429,11 @@ class GameTimer:
                                 try:
                                     with open(temp_hash_path, 'w') as f:
                                         f.write(usb_hash)
+                                    print(f"Saved hash: {usb_hash[:8]}")
                                 except Exception as e:
                                     print(f"Error writing usb hash: {e}")
-
                         else:
-                            print("game already copied")
+                            print("game already loaded (same hash)")
 
                         temp_parser = SoundFileParser("temp")
                         tempGame = temp_parser.get_game_title()
@@ -523,7 +547,7 @@ def setup_file_logging():
     full_log_path = os.path.join(log_directory, log_filename)
 
     # Create a logger object
-    logger = logging.getLogger('my_app')
+    logger = logging.getLogger('game_timer')
     logger.setLevel(logging.INFO)  # Set the logging level
     
     # Remove any existing handlers
@@ -595,8 +619,8 @@ def main():
     try:
         logger = setup_logging()
         # Redirect stderr and stdout
-        # sys.stderr = StreamToLogger(logger, logging.ERROR)
-        # sys.stdout = StreamToLogger(logger, logging.INFO)
+        sys.stderr = StreamToLogger(logger, logging.ERROR)
+        sys.stdout = StreamToLogger(logger, logging.INFO)
         print("This is a test message") 
         game_timer = GameTimer(logger)
         #game_timer.test()

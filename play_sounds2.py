@@ -7,10 +7,11 @@ import vlc
 from SoundFileParser import SoundFileParser
 
 class SoundPlayer():
-    def __init__(self, sounds, sound_dir):
+    def __init__(self, sounds, sound_dir, cutoff_end_sound=True):
         self.soundPlayerThread = None
         self.sounds = sounds
         self.sound_dir = sound_dir
+        self.cutoff_end_sound = cutoff_end_sound
         self.running = True
         self.paused = False
         self.current_sound = None
@@ -50,37 +51,65 @@ class SoundPlayer():
         beginning_sound = sound_files[0]
         main_sound = sound_files[1]
         ending_sound = sound_files[2]
-        
-        # Play beginning sound if available
+
+        round_start_time = time.time()
+        end_trigger_offset = 2.0
+        end_trigger_time = max(0.0, self.duration - end_trigger_offset)
+
+        def _elapsed_active_time():
+            return time.time() - round_start_time - self.total_pause_duration
+
+        # Start with beginning sound (if any). It plays immediately while the timer is already running.
         if beginning_sound:
             print(f"Playing beginning sound: {beginning_sound}")
-            duration = self.play_sound_with_duration(beginning_sound)
-            if duration > 0:
-                # Wait for the beginning sound to finish naturally
-                start_time = time.time()
-                while time.time() - start_time < duration and self.running:
-                    time.sleep(0.1)
-            else:
+            if self.play_sound_with_duration(beginning_sound) <= 0:
                 print("Error playing beginning sound")
-        
+
+        # Start main sound after B finishes (no crossfade).
+        # We do not rely on looping for timing; the thread will switch to E at (T - 2s).
+        if beginning_sound:
+            while self.running and (self.player is not None) and self.player.is_playing():
+                if _elapsed_active_time() >= self.duration:
+                    break
+                time.sleep(0.05)
+
+        if not self.running or _elapsed_active_time() >= self.duration:
+            if self.cutoff_end_sound and self.player:
+                self.player.stop()
+            print("exiting sound thread")
+            return
+
         print(f"Playing main sound: {main_sound}")
-        if not self.play_sound(main_sound, loop=True):
+        if not self.play_sound(main_sound, loop=False):
             print("Error playing main sound")
             return
-        main_sound_length = self.duration
-        self.start_time = time.time()
+
+        # Wait until it is time to trigger E (T - 2s), accounting for pauses.
         while self.running:
-            if self.current_sound:
-                elapsed_time = time.time() - self.start_time - self.total_pause_duration
-                if elapsed_time < main_sound_length - 2:
-                    time.sleep(0.1)
-                else:
-                    break
-        if self.running:
+            if _elapsed_active_time() >= self.duration:
+                break
+            if _elapsed_active_time() >= end_trigger_time:
+                break
+            time.sleep(0.05)
+
+        if self.running and _elapsed_active_time() < self.duration:
             print("Switching to ending sound.")
-            self.player.stop()
-            self.play_sound(ending_sound)
-            time.sleep(2)
+            if self.player:
+                self.player.stop()
+            ending_duration = self.play_sound_with_duration(ending_sound, loop=False)
+
+            # By default, cut off E at the exact end of the timer. If disabled, let E play out.
+            if self.cutoff_end_sound:
+                while self.running and _elapsed_active_time() < self.duration:
+                    time.sleep(0.05)
+                if self.player:
+                    self.player.stop()
+            else:
+                if ending_duration > 0:
+                    e_start = time.time()
+                    while self.running and (time.time() - e_start) < ending_duration:
+                        time.sleep(0.05)
+
         print("exiting sound thread")
 
     def play_sound_with_duration(self, sound_file, loop=False):
@@ -88,13 +117,19 @@ class SoundPlayer():
         sound_path = os.path.join(self.sound_dir, sound_file)
         print(f"Loading sound from path: {sound_path}")
         try:
+            # NOTE: Using an EndReached callback to loop can race with track switching
+            # (e.g. stopping main and immediately creating a new player for the ending
+            # sound). Use VLC's native repeat option for looping instead.
             self.loop = loop
-            self.player = vlc.MediaPlayer(sound_path)
-            event_manager = self.player.event_manager()
-            event_manager.event_attach(vlc.EventType.MediaPlayerEndReached, self.on_end_reached)
-            
+            self.player = vlc.MediaPlayer()
+
+            # Create media and apply repeat option when looping
+            media = vlc.Media(sound_path)
+            if loop:
+                media.add_option("input-repeat=-1")
+            self.player.set_media(media)
+
             # Get media duration
-            media = self.player.get_media()
             media.parse()  # Parse to get accurate duration
             duration_ms = media.get_duration()
             duration_sec = duration_ms / 1000.0 if duration_ms > 0 else 0
@@ -104,11 +139,6 @@ class SoundPlayer():
         except Exception as e:
             print(f"Error loading sound: {e}")
             return 0
-
-    def on_end_reached(self, event):
-        if self.loop:
-            self.player.stop()
-            self.player.play()
 
     def play_sound(self, sound_file, loop=False):
         """Legacy method for compatibility - calls play_sound_with_duration but ignores duration."""
@@ -160,7 +190,7 @@ def main():
     if choice in sound_dirs:
         sounds, sound_dir = sound_dirs[choice]
         print(sound_dir)
-        player = SoundPlayer(sounds, sound_dir)
+        player = SoundPlayer(sounds, sound_dir, cutoff_end_sound=True)
         player.select_random_sound()
         print(player.get_current_sound())
         if choice == 'r':

@@ -68,9 +68,9 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     exit 0
 fi
 
-# Create destination directory on Pi if it doesn't exist
+# Create destination directory and set permissions in one SSH call
 echo -e "${YELLOW}Creating destination directory on Pi...${NC}"
-ssh "${PI_USER}@${PI_HOST}" "mkdir -p ${PI_PATH}"
+ssh "${PI_USER}@${PI_HOST}" "mkdir -p ${PI_PATH} && chmod +x ${PI_PATH}/*.py 2>/dev/null || true"
 
 # Sync files using rsync
 echo -e "${YELLOW}Syncing files to Pi...${NC}"
@@ -91,10 +91,6 @@ else
     echo -e "${RED}✗ Sync failed${NC}"
     exit 1
 fi
-
-# Set permissions on Pi
-echo -e "${YELLOW}Setting permissions on Pi...${NC}"
-ssh "${PI_USER}@${PI_HOST}" "chmod +x ${PI_PATH}/*.py 2>/dev/null || true"
 
 # Show deployed files
 echo -e "${YELLOW}Deployed files on Pi:${NC}"
