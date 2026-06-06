@@ -1,5 +1,6 @@
 import os
 import random
+import re
 import time
 import threading
 import queue
@@ -21,6 +22,29 @@ class SoundPlayer():
         self.total_pause_duration = 0
         self.player = None
         self.loop = False
+        self.ordered_keys = self._build_ordered_keys()
+
+    def _extract_leading_number(self, text):
+        try:
+            m = re.match(r"^(\d+)", str(text).strip())
+            return int(m.group(1)) if m else None
+        except Exception:
+            return None
+
+    def _build_ordered_keys(self):
+        keys = list(self.sounds.keys()) if self.sounds else []
+        def key_func(k):
+            files = self.sounds[k]
+            m_file = files[1] if len(files) > 1 else ''
+            if isinstance(k, int):
+                return (0, k, str(m_file).lower())
+            num = self._extract_leading_number(m_file)
+            if num is None:
+                num = self._extract_leading_number(k)
+            if num is not None:
+                return (0, num, str(m_file).lower())
+            return (1, str(m_file or k).lower())
+        return sorted(keys, key=key_func)
 
     def start(self, duration):
         if self.soundPlayerThread is None:
@@ -170,8 +194,29 @@ class SoundPlayer():
             sound_files = self.sounds[self.current_sound]
             print(f"Selected sound {sound_files[1]} (beginning: {sound_files[0] if sound_files[0] else 'None'}, ending: {sound_files[2]})")
 
+    def select_first_sound(self):
+        if self.ordered_keys:
+            self.current_sound = self.ordered_keys[0]
+            sound_files = self.sounds[self.current_sound]
+            print(f"Selected sound {sound_files[1]} (beginning: {sound_files[0] if sound_files[0] else 'None'}, ending: {sound_files[2]})")
+
+    def select_next_sound(self):
+        if not self.ordered_keys:
+            return
+        keys = self.ordered_keys
+        if self.current_sound in keys:
+            idx = keys.index(self.current_sound)
+            next_idx = (idx + 1) % len(keys)
+        else:
+            next_idx = 0
+        self.current_sound = keys[next_idx]
+        sound_files = self.sounds[self.current_sound]
+        print(f"Selected sound {sound_files[1]} (beginning: {sound_files[0] if sound_files[0] else 'None'}, ending: {sound_files[2]})")
+
     def get_current_sound(self):
-        return self.sounds[self.current_sound][1]  # Return main sound (index 1)
+        if self.current_sound is None and self.ordered_keys:
+            self.current_sound = self.ordered_keys[0]
+        return self.sounds[self.current_sound][1]
 
 def input_thread(input_queue):
     while True:

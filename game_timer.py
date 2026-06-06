@@ -87,6 +87,7 @@ class GameTimer:
         self.default_game_title = soundFileParser.get_game_title()
         self.default_sound_dirs = soundFileParser.get_sound_dict()
         self.sound_dir_key = "s"
+        self.bank_selected = False
         
         # Check for persistent game on startup
         self.check_for_persistent_game()
@@ -117,10 +118,10 @@ class GameTimer:
         self.ringPixels = LEDStrip(start_pixel=0, length=num_pixels_ring, gpio=pixel_pin, num_pixels_total=num_pixels_ring+num_pixels_strip)
         self.stripPixels = LEDStrip(start_pixel=num_pixels_ring, length=num_pixels_strip)
         
-        self.update_current_sound()
         #initialize audio player
         #self.audio_player = AudioPlayer("audio", logger)
         self.initialize_pygame()
+        self.log_audio_tree()
 
     def check_for_persistent_game(self):
         """Check if there's a valid game already loaded in temp directory"""
@@ -156,7 +157,7 @@ class GameTimer:
                 self.logger.info(f"active sound_dir -> {sound_dir} (source=loaded, bank={key})")
                 self.active_sound_dir = sound_dir
             self.player = SoundPlayer(sounds, sound_dir, cutoff_end_sound=CUTOFF_END_SOUND_AT_TIMER_END)
-            self.player.select_random_sound()
+            self.player.select_first_sound()
             self.tracker.setSoundFile(key, self.player.get_current_sound())
         else:
             # Use defaults only if no game is loaded
@@ -165,28 +166,27 @@ class GameTimer:
                 self.logger.info(f"active sound_dir -> {sound_dir} (source=defaults, bank={key})")
                 self.active_sound_dir = sound_dir
             self.player = SoundPlayer(sounds, sound_dir, cutoff_end_sound=CUTOFF_END_SOUND_AT_TIMER_END)
-            self.player.select_random_sound()
+            self.player.select_first_sound()
             self.tracker.setSoundFile(key, self.player.get_current_sound())
+        self.bank_selected = True
     
     def update_current_sound(self):
-        # Always prioritize loaded games over defaults
         if self.gameLoaded and self.loadedSounds:
             sounds, sound_dir = self.loadedSounds[self.sound_dir_key]
-            if self.active_sound_dir != sound_dir:
-                self.logger.info(f"active sound_dir -> {sound_dir} (source=loaded, bank={self.sound_dir_key})")
-                self.active_sound_dir = sound_dir
-            self.player = SoundPlayer(sounds, sound_dir, cutoff_end_sound=CUTOFF_END_SOUND_AT_TIMER_END)
-            self.player.select_random_sound()
-            self.tracker.setSoundFile(self.sound_dir_key,self.player.get_current_sound())
+            source = "loaded"
         else:
-            # Use defaults only if no game is loaded
             sounds, sound_dir = self.default_sound_dirs[self.sound_dir_key]
-            if self.active_sound_dir != sound_dir:
-                self.logger.info(f"active sound_dir -> {sound_dir} (source=defaults, bank={self.sound_dir_key})")
-                self.active_sound_dir = sound_dir
+            source = "defaults"
+
+        if self.active_sound_dir != sound_dir or not hasattr(self, 'player') or self.player is None:
+            self.logger.info(f"active sound_dir -> {sound_dir} (source={source}, bank={self.sound_dir_key})")
+            self.active_sound_dir = sound_dir
             self.player = SoundPlayer(sounds, sound_dir, cutoff_end_sound=CUTOFF_END_SOUND_AT_TIMER_END)
-            self.player.select_random_sound()
-            self.tracker.setSoundFile(self.sound_dir_key,self.player.get_current_sound())
+            self.player.select_first_sound()
+        else:
+            self.player.select_next_sound()
+
+        self.tracker.setSoundFile(self.sound_dir_key, self.player.get_current_sound())
         print(self.player.get_current_sound())
 
 
@@ -261,14 +261,14 @@ class GameTimer:
                 self.button_flags[index] = False
                 if index + 1 == 1:
                     print("1")
-                    if self.sound_dir_key == 's':
+                    if self.sound_dir_key == 's' and self.bank_selected:
                         self.update_current_sound()
                     else:
                         self.update_audio_directory('s')
                     self.tracker.set_total_time(60)
                 elif index + 1 == 2:
 
-                    if self.sound_dir_key == 'n':
+                    if self.sound_dir_key == 'n' and self.bank_selected:
                         self.update_current_sound()
                     else:
                         self.update_audio_directory('n')
@@ -277,7 +277,7 @@ class GameTimer:
                 elif index + 1 == 3:
                     print("3")
                     self.tracker.set_total_time(random.randint(60, 120))
-                    if self.sound_dir_key == 'r':
+                    if self.sound_dir_key == 'r' and self.bank_selected:
                         self.update_current_sound()
                     else:
                         self.update_audio_directory('r')
@@ -442,7 +442,8 @@ class GameTimer:
                         self.tracker.setGameLoaded(self.gameLoaded)
                         self.tracker.setGame(tempGame)
                         print(f"Game loaded: {tempGame}")
-                        self.update_current_sound()
+                        self.bank_selected = False
+                        self.active_sound_dir = None
 
 
     def app(self):
@@ -471,6 +472,8 @@ class GameTimer:
                 self.stripPixels.start_game_over_pattern()
                 self.ringPixels.stop_current_pattern()
                 self.ringPixels.start_game_over_pattern()
+                self.player.select_next_sound()
+                self.tracker.setSoundFile(self.sound_dir_key, self.player.get_current_sound())
                 
             if(self.tracker.updateReady()):
                 #self.logger.info("updating display")
@@ -487,9 +490,35 @@ class GameTimer:
         self.ringPixels.stop_current_pattern()
         self.stripPixels.off()
         self.ringPixels.off()
-        self.player.stop()
+        if hasattr(self, 'player') and self.player:
+            self.player.stop()
         #self.audio_player.stop_hardware_test()
         self.oled_display.clear_display()
+
+    def log_audio_tree(self):
+        roots = ["sounds"]
+        try:
+            if os.path.isdir("temp"):
+                roots.append("temp")
+        except Exception:
+            pass
+        for root in roots:
+            try:
+                self.logger.info(f"audio tree root: {root}")
+                for current_root, dirs, files in os.walk(root):
+                    dirs[:] = sorted(dirs)
+                    files = sorted(files)
+                    rel = os.path.relpath(current_root, root)
+                    depth = 0 if rel == '.' else rel.count(os.sep) + 1
+                    prefix = '  ' * depth
+                    name = root if depth == 0 else os.path.basename(current_root)
+                    self.logger.info(f"{prefix}{name}/")
+                    for f in files:
+                        if f.startswith('.'):
+                            continue
+                        self.logger.info(f"{prefix}  {f}")
+            except Exception as e:
+                self.logger.info(f"error walking {root}: {e}")
 
     def initialize_pygame(self):
         pygame.init()

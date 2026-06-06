@@ -29,7 +29,7 @@ class SoundFileParser:
             return temp_dict
         for entry in entries:
             lowered = entry.lower()
-            if lowered in {"desktop.ini", "thumbs.db"}:
+            if entry.startswith('.') or lowered in {"desktop.ini", "thumbs.db"}:
                 continue
             words = re.split('[_.]', entry)
             if len(words) < 3:
